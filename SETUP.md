@@ -16,7 +16,16 @@
    6. `fix_cities.sql` — مزايا المدن + سوق المراجحة + السفر
    7. `fix_jobs.sql` — الورديات اليومية + نقاط العمل + الترقيات
    8. `fix_activities.sql` — المهام اليومية + سلسلة الدخول
-   > الملفات 2–8 آمنة لإعادة التشغيل (idempotent).
+   9. `fix_game_time.sql` — يوم اللعبة = 2 ساعة حقيقية (بدل 24)
+   10. `fix_job_tasks.sql` — 28 مهمة متنوعة لكل وظيفة (cooldown 20-60 دقيقة)
+   11. `fix_market_rpc.sql` — شراء السوق ذري آمن (بدون race condition)
+   12. `fix_weapons_real.sql` — 29 سلاح حقيقي (AK-47، Barrett، Desert Eagle…)
+   13. `fix_bounty.sql` — لوحة المطلوبين: ضع مكافأة واجمعها عند القتل
+   14. `fix_fightclub.sql` — نادي القتال السري: راهن على المعارك
+   15. `fix_achievements.sql` — 31 إنجازاً مع مكافآت نقدية وإحصائيات
+   16. `fix_blackmarket.sql` — السوق السوداء: عروض محدودة الوقت
+   17. `fix_admin_uncap.sql` — رفع حدود القيم للمشرفين (اختياري إذا شغّلت #4 مسبقاً)
+   > جميع الملفات آمنة لإعادة التشغيل (idempotent).
 5. اذهب إلى **Settings > API**:
    - انسخ **Project URL**
    - انسخ **anon public key**
