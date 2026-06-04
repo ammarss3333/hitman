@@ -81,6 +81,20 @@ CREATE TABLE IF NOT EXISTS public.gangs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ربط gang_id في جدول اللاعبين بجدول العصابات (مفتاح خارجي)
+-- هذا ضروري حتى يتعرف Supabase/PostgREST على العلاقة players -> gangs
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'players_gang_id_fkey'
+  ) THEN
+    ALTER TABLE public.players
+      ADD CONSTRAINT players_gang_id_fkey
+      FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
 -- أعضاء العصابات
 CREATE TABLE IF NOT EXISTS public.gang_members (
   gang_id UUID REFERENCES public.gangs(id) ON DELETE CASCADE,
