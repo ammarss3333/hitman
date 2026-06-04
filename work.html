@@ -24,6 +24,7 @@
 <script src="js/sounds.js"></script>
 <script>
 let player;
+let taskCooldowns = {}; // task_id → Date (last_done)
 
 // خريطة الوظيفة ← إحصائية العمل (مطابقة لدالة job_work_stat في القاعدة)
 const JOB_STAT = {
@@ -36,28 +37,36 @@ const STAT_META = {
   work_intel:     { label: 'عمل ذهني',     icon: '🧠', cls: 'en'   },
   work_endurance: { label: 'عمل بدني',     icon: '💪', cls: 'gold' }
 };
+const STAT_LABEL = {
+  strength: 'القوة', fitness: 'اللياقة', labor: 'العمل اليدوي', intelligence: 'الذكاء'
+};
 function jobStat(jobId){ return JOB_STAT[jobId] || 'work_manual'; }
 
 async function init() {
   player = await buildNav('work');
   if (!player) return;
 
-  const { data: jobs } = await supabase.from('jobs').select('*').order('base_salary');
+  const [{ data: jobs }, { data: rawCooldowns }] = await Promise.all([
+    supabase.from('jobs').select('*').order('base_salary'),
+    player.job_id
+      ? supabase.from('player_job_tasks').select('task_id, last_done').eq('player_id', player.id)
+      : Promise.resolve({ data: [] })
+  ]);
+
+  // بناء خريطة التبريد
+  taskCooldowns = {};
+  (rawCooldowns || []).forEach(r => { taskCooldowns[r.task_id] = new Date(r.last_done); });
+
   const currentJob = jobs?.find(j => j.id === player.job_id);
 
-  // تبريد الوردية — يوم اللعبة = 2 ساعة حقيقية
+  // تبريد الوردية
   const now = new Date();
   let shiftHoursLeft = null;
   if (player.last_shift) {
     const diff = (now - new Date(player.last_shift)) / 3600000;
-    shiftHoursLeft = Math.max(0, 2 - diff);
+    shiftHoursLeft = Math.max(0, 24 - diff);
   }
   const shiftReady = shiftHoursLeft === null || shiftHoursLeft === 0;
-  // دالة لعرض الوقت المتبقي بالدقائق إن كان أقل من ساعة
-  function fmtShiftLeft(h) {
-    if (h >= 1) return h.toFixed(1) + ' ساعة';
-    return Math.ceil(h * 60) + ' دقيقة';
-  }
 
   const jp = player.job_points || 0;
   const wm = player.work_manual || 0, wi = player.work_intel || 0, we = player.work_endurance || 0;
@@ -80,7 +89,6 @@ async function init() {
   const statBar = (key) => {
     const m = STAT_META[key];
     const val = { work_manual: wm, work_intel: wi, work_endurance: we }[key];
-    // النسبة مرجعها هدف الترقية الحالي (job_level*50) لجعل الشريط ذا معنى
     const goal = currentJob ? Math.max(50, player.job_level * 50) : 100;
     return `
       <div style="flex:1;min-width:110px">
@@ -90,6 +98,85 @@ async function init() {
         <div class="pbar"><div class="pbar-fill ${m.cls}" style="width:${pct(val, goal)}%"></div></div>
       </div>`;
   };
+
+  // ── بناء قسم مهام العمل ──
+  let tasksHtml = '';
+  if (currentJob) {
+    const { data: tasks } = await supabase
+      .from('job_tasks')
+      .select('*')
+      .eq('job_id', currentJob.id)
+      .order('cooldown_minutes');
+
+    if (tasks && tasks.length) {
+      const playerStats = {
+        strength: player.strength || 0,
+        fitness:  player.fitness  || 0,
+        labor:    player.labor    || 0,
+        intelligence: player.intelligence || 0
+      };
+
+      const taskCards = tasks.map(t => {
+        const last = taskCooldowns[t.id];
+        let minsLeft = 0;
+        if (last) {
+          const elapsed = (now - last) / 60000;
+          minsLeft = Math.max(0, t.cooldown_minutes - elapsed);
+        }
+        const ready = minsLeft === 0;
+        const meetsReq = playerStats[t.stat_key] >= t.min_stat;
+        const hasEnergy = player.energy >= t.energy_cost;
+        const canDo = ready && meetsReq && hasEnergy;
+
+        const sm = STAT_META[t.stat_gain_key] || { icon: '⭐', label: t.stat_gain_key };
+
+        let cooldownBadge = ready
+          ? `<span class="badge badge-g" style="font-size:.7rem">جاهزة ✅</span>`
+          : `<span class="badge badge-r" style="font-size:.7rem" id="cd-${t.id}">⏳ ${fmtMins(minsLeft)}</span>`;
+
+        let disabledReason = '';
+        if (!ready)        disabledReason = `تبريد ${fmtMins(minsLeft)}`;
+        else if (!hasEnergy)  disabledReason = `طاقة غير كافية (${player.energy}/${t.energy_cost})`;
+        else if (!meetsReq)   disabledReason = `تحتاج ${STAT_LABEL[t.stat_key]} ${t.min_stat}`;
+
+        return `
+          <div class="card" style="border-color:${canDo?'rgba(0,180,255,.3)':'var(--border)'};background:${canDo?'rgba(0,180,255,.04)':'var(--card)'}">
+            <div class="flex items-c gap10 mb8">
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:.95rem">${t.name}</div>
+                <div class="text-2" style="font-size:.75rem;margin-top:2px">${t.description}</div>
+              </div>
+              ${cooldownBadge}
+            </div>
+            <div class="flex flex-wrap gap6 mb10">
+              <span class="badge badge-gold">💰 +${$$(t.reward_cash)}</span>
+              <span class="badge badge-b">🎯 +${t.reward_jp} نقطة</span>
+              <span class="badge badge-b">${sm.icon} +${t.stat_gain} ${sm.label}</span>
+              <span class="badge ${hasEnergy?'badge-b':'badge-r'}">⚡ ${t.energy_cost} طاقة</span>
+            </div>
+            <div class="flex items-c gap8">
+              <div class="text-2" style="font-size:.7rem;flex:1">
+                متطلب: ${STAT_LABEL[t.stat_key]}
+                <span class="${meetsReq?'':'text-r'}">${playerStats[t.stat_key]}/${t.min_stat}</span>
+                · تبريد ${t.cooldown_minutes}د
+              </div>
+              ${canDo
+                ? `<button class="btn btn-b btn-sm" onclick="doTask('${t.id}',this)">تنفيذ ⚡</button>`
+                : `<button class="btn btn-ghost btn-sm" disabled title="${disabledReason}">${disabledReason || 'غير متاح'}</button>`}
+            </div>
+          </div>`;
+      }).join('');
+
+      tasksHtml = `
+        <div class="card mb16">
+          <div class="card-hdr mb14">
+            <div class="card-title">⚡ مهام العمل</div>
+            <span class="text-2 text-sm">مهام قصيرة بتبريد 15-60 دقيقة</span>
+          </div>
+          <div class="g2">${taskCards}</div>
+        </div>`;
+    }
+  }
 
   document.getElementById('main').innerHTML = `
     <div class="page-hdr">
@@ -128,7 +215,7 @@ async function init() {
       <div class="mt14">
         ${shiftReady
           ? `<button class="btn btn-g btn-full" onclick="doShift()">🛠️ بدء وردية اليوم</button>`
-          : `<button class="btn btn-ghost btn-full" disabled>⏰ الوردية القادمة خلال ${fmtShiftLeft(shiftHoursLeft)}</button>`}
+          : `<button class="btn btn-ghost btn-full" disabled>⏰ الوردية القادمة خلال ${shiftHoursLeft.toFixed(1)} ساعة</button>`}
       </div>
 
       <div class="mt8">
@@ -144,6 +231,8 @@ async function init() {
              </div>`}
       </div>
     </div>
+
+    ${tasksHtml}
 
     <!-- متجر نقاط العمل -->
     <div class="card mb16">
@@ -213,6 +302,14 @@ async function init() {
   `;
 }
 
+// ── تنسيق الوقت المتبقي بالدقائق ──
+function fmtMins(mins) {
+  if (mins <= 0) return 'جاهزة';
+  if (mins < 60) return Math.ceil(mins) + 'د';
+  const h = Math.floor(mins / 60), m = Math.ceil(mins % 60);
+  return h + 'س' + (m ? ' ' + m + 'د' : '');
+}
+
 // ===== الوردية اليومية =====
 async function doShift() {
   const btn = event.currentTarget;
@@ -238,6 +335,36 @@ async function doShift() {
       </div>
       <div class="text-2 text-sm mt14">🔥 سلسلة العمل: ${data.streak} يوم متتالٍ</div>
       <button class="btn btn-g btn-full mt14" onclick="closeModal();init()">رائع!</button>
+    </div>
+  `);
+}
+
+// ===== مهمة العمل =====
+async function doTask(taskId, btn) {
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '⏳';
+  const { data, error } = await supabase.rpc('do_job_task', { p_task_id: taskId });
+  if (error || !data?.success) {
+    sfxFail();
+    toast(data?.message || error?.message || 'حدث خطأ', 'e');
+    btn.disabled = false;
+    btn.textContent = orig;
+    return;
+  }
+  sfxSalary();
+  const sg = data.stat_gained || {};
+  const sm = STAT_META[sg.key] || { icon: '⭐', label: sg.key || '' };
+  openModal(`
+    <div class="text-c">
+      <div style="font-size:2.4rem">⚡</div>
+      <div class="card-title mt8">${data.message}</div>
+      <div class="flex flex-wrap gap8 mt14" style="justify-content:center">
+        <span class="badge badge-gold" style="font-size:.9rem">💰 +${$$(data.reward_cash)}</span>
+        <span class="badge badge-b"  style="font-size:.9rem">🎯 +${data.reward_jp} نقطة</span>
+        <span class="badge badge-g"  style="font-size:.9rem">${sm.icon} +${sg.amount||0} ${sm.label}</span>
+      </div>
+      <button class="btn btn-b btn-full mt14" onclick="closeModal();init()">متابعة</button>
     </div>
   `);
 }
