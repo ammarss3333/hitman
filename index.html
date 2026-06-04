@@ -88,6 +88,19 @@ for (let i = 0; i < 6; i++) {
   if (session) window.location.href = 'home.html';
 })();
 
+// رسالة الحظر
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('banned') === '1') {
+    const reason = p.get('reason') || 'مخالفة قواعد اللعبة';
+    const div = document.createElement('div');
+    div.style.cssText = 'background:rgba(220,20,60,.12);border:1px solid rgba(220,20,60,.4);border-radius:8px;padding:14px;margin-bottom:16px;color:#ff4466;font-size:.85rem;text-align:center';
+    div.innerHTML = `🔨 <strong>تم حظر حسابك</strong><br><span style="font-size:.78rem;opacity:.85">${reason}</span>`;
+    const card = document.querySelector('.auth-card');
+    if (card) card.insertBefore(div, card.firstChild);
+  }
+})();
+
 function showTab(tab) {
   document.getElementById('tab-login').classList.toggle('active', tab === 'login');
   document.getElementById('tab-register').classList.toggle('active', tab === 'register');

@@ -22,6 +22,14 @@ async function loadPlayer(force = false) {
       .single();
 
     if (error) throw error;
+
+    // حظر: إعادة التوجيه مع رسالة
+    if (data.is_banned) {
+      await supabase.auth.signOut();
+      window.location.href = BASE_PATH + 'index.html?banned=1&reason=' + encodeURIComponent(data.ban_reason || 'مخالفة القواعد');
+      return null;
+    }
+
     _player = data;
     return data;
   } catch (e) {
@@ -102,6 +110,7 @@ async function buildNav(activePage) {
     { icon: '📋', label: 'الأحداث',           href: 'events.html',      id: 'events' },
     { icon: '🏆', label: 'المشاهير',          href: 'leaderboard.html', id: 'leaderboard' },
     { icon: '🔍', label: 'البحث',             href: 'search.html',      id: 'search' },
+    ...(player.is_admin ? [{ icon: '👑', label: 'لوحة التحكم', href: 'admin.html', id: 'admin' }] : []),
   ];
 
   const cityInfo = CITIES[player.city] || { name: player.city, flag: '🌐' };
@@ -113,8 +122,8 @@ async function buildNav(activePage) {
     <div class="sb-head">
       <div class="logo">قاتل <span>مأجور</span></div>
       <div class="sb-player">
-        <div class="sb-avatar">${player.avatar}</div>
-        <div class="sb-name">${player.username}</div>
+        <div class="sb-avatar" style="${player.is_admin ? 'border-color:var(--gold);box-shadow:0 0 14px var(--gold-glow)' : ''}">${player.avatar}</div>
+        <div class="sb-name">${player.is_admin ? '👑 ' : ''}${player.username}</div>
         <div class="sb-lvl">مستوى ${player.level} · ${cityInfo.flag} ${cityInfo.name}</div>
         <div class="sb-bars">
           <div class="sb-bar-row">❤️ <div class="sb-bar"><div class="sb-bar-fill hp" style="width:${hp}%"></div></div><span class="sb-bar-val">${player.health}/${player.max_health}</span></div>

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة التحكم – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+.adm-tabs{display:flex;gap:4px;background:var(--bg2);border-radius:var(--r2);padding:4px;margin-bottom:20px;flex-wrap:wrap}
+.adm-tab{flex:1;min-width:120px;padding:9px 6px;text-align:center;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;color:var(--text2);transition:all .2s;user-select:none}
+.adm-tab.active{background:var(--red);color:#fff;box-shadow:0 2px 12px var(--red-glow)}
+.adm-tab:hover:not(.active){color:var(--text);background:rgba(220,20,60,.06)}
+.adm-pane{display:none}
+.adm-pane.active{display:block;animation:fadeUp .25s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.pl-card{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);transition:all .2s;margin-bottom:8px}
+.pl-card:hover{border-color:var(--border-r);background:rgba(220,20,60,.04)}
+.pl-av{font-size:1.7rem;flex-shrink:0;width:40px;text-align:center}
+.pl-body{flex:1;min-width:0}
+.pl-name{font-size:.92rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+
+.adm-sec{padding:14px 0;border-top:1px dashed var(--border)}
+.adm-sec:first-of-type{border-top:none;padding-top:4px}
+.adm-sec-t{font-size:.82rem;font-weight:800;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.adm-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.adm-row .fg{margin-bottom:0;flex:1;min-width:90px}
+.adm-modal-hd{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.adm-modal-hd .pl-av{font-size:2rem;width:auto}
+
+.stat-tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;text-align:center}
+.stat-tile .v{font-size:1.8rem;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums}
+.stat-tile .l{font-size:.78rem;color:var(--text2);margin-top:4px}
+
+.comp-row{padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:8px}
+.ann-row{padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
+.chk-row{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--text2);cursor:pointer}
+.chk-row input{width:16px;height:16px;accent-color:var(--red);cursor:pointer}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+const TYPE_LABELS = { info:'معلومة', warning:'تحذير', event:'حدث', prize:'جائزة' };
+const TYPE_BADGE = { info:'badge-b', warning:'badge-r', event:'badge-gold', prize:'badge-g' };
+const METRIC_LABELS = { cash:'الأغنى', level:'الأعلى مستوى', strength:'الأقوى', exp:'الأكثر خبرة', manual:'يدوي' };
+const STAT_FIELDS = ['strength','fitness','defense','labor','intelligence','level','exp','points','cash','bank_balance','energy','max_energy','health','max_health','willpower','max_willpower'];
+const STAT_LABELS = {
+  strength:'القوة', fitness:'اللياقة', defense:'الدفاع', labor:'العمالة', intelligence:'الذكاء',
+  level:'المستوى', exp:'الخبرة', points:'النقاط', cash:'الكاش', bank_balance:'رصيد البنك',
+  energy:'الطاقة', max_energy:'أقصى طاقة', health:'الصحة', max_health:'أقصى صحة',
+  willpower:'الإرادة', max_willpower:'أقصى إرادة'
+};
+
+async function init() {
+  player = await buildNav('admin');
+  if (!player) return;
+
+  if (!player.is_admin) {
+    document.getElementById('main').innerHTML = '<div class="empty"><div class="ei">🚫</div><p>هذه الصفحة للمشرفين فقط</p></div>';
+    return;
+  }
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">👑</div>
+      <div>
+        <div class="page-title">لوحة <em>التحكم</em></div>
+        <div class="page-sub">صلاحيات المشرف الكاملة</div>
+      </div>
+    </div>
+
+    <div class="adm-tabs">
+      <div class="adm-tab active" data-tab="players" onclick="switchTab('players')">👥 اللاعبون</div>
+      <div class="adm-tab" data-tab="ann" onclick="switchTab('ann')">📢 الإعلانات</div>
+      <div class="adm-tab" data-tab="comp" onclick="switchTab('comp')">🏆 المسابقات</div>
+      <div class="adm-tab" data-tab="tools" onclick="switchTab('tools')">🎁 أدوات عامة</div>
+    </div>
+
+    <!-- اللاعبون -->
+    <div class="adm-pane active" id="pane-players">
+      <div class="card mb16">
+        <div class="adm-row">
+          <div class="fg" style="flex:2">
+            <label class="fl">🔍 البحث عن لاعب</label>
+            <input class="fc" id="pl-search" placeholder="اكتب اسم اللاعب..." oninput="onSearchInput()">
+          </div>
+          <div class="fg" style="flex:0 0 auto;min-width:0">
+            <button class="btn btn-ghost" onclick="loadPlayers('')">📋 عرض الكل</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title mb14">نتائج البحث</div>
+        <div id="pl-results"><div class="empty" style="padding:30px"><div class="ei">👥</div><p>ابحث أو اعرض كل اللاعبين</p></div></div>
+      </div>
+    </div>
+
+    <!-- الإعلانات -->
+    <div class="adm-pane" id="pane-ann">
+      <div class="card mb16">
+        <div class="card-title mb14">📢 نشر إعلان جديد</div>
+        <div class="fg"><label class="fl">العنوان</label><input class="fc" id="ann-title" placeholder="عنوان الإعلان"></div>
+        <div class="fg"><label class="fl">النص</label><textarea class="fc" id="ann-body" placeholder="محتوى الإعلان"></textarea></div>
+        <div class="adm-row mb14">
+          <div class="fg"><label class="fl">النوع</label>
+            <select class="fc" id="ann-type">
+              <option value="info">معلومة</option>
+              <option value="warning">تحذير</option>
+              <option value="event">حدث</option>
+              <option value="prize">جائزة</option>
+            </select>
+          </div>
+          <div class="fg" style="flex:0 0 auto">
+            <label class="chk-row" style="margin-bottom:9px"><input type="checkbox" id="ann-pin"> 📌 تثبيت</label>
+          </div>
+        </div>
+        <button class="btn btn-r btn-full" onclick="postAnn()">📢 نشر الإعلان</button>
+      </div>
+      <div class="card">
+        <div class="card-title mb14">الإعلانات النشطة</div>
+        <div id="ann-list"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- المسابقات -->
+    <div class="adm-pane" id="pane-comp">
+      <div class="card mb16">
+        <div class="card-title mb14">🏆 إنشاء مسابقة</div>
+        <div class="fg"><label class="fl">العنوان</label><input class="fc" id="cmp-title" placeholder="عنوان المسابقة"></div>
+        <div class="fg"><label class="fl">الوصف</label><textarea class="fc" id="cmp-desc" placeholder="وصف المسابقة"></textarea></div>
+        <div class="adm-row mb14">
+          <div class="fg"><label class="fl">المقياس</label>
+            <select class="fc" id="cmp-metric">
+              <option value="cash">الأغنى</option>
+              <option value="level">الأعلى مستوى</option>
+              <option value="strength">الأقوى</option>
+              <option value="exp">الأكثر خبرة</option>
+              <option value="manual">يدوي</option>
+            </select>
+          </div>
+          <div class="fg"><label class="fl">المدة (ساعات)</label><input class="fc" id="cmp-hours" type="number" value="24"></div>
+        </div>
+        <div class="g3 mb14">
+          <div class="fg"><label class="fl">🥇 الجائزة 1</label><input class="fc" id="cmp-p1" type="number" value="1000000"></div>
+          <div class="fg"><label class="fl">🥈 الجائزة 2</label><input class="fc" id="cmp-p2" type="number" value="500000"></div>
+          <div class="fg"><label class="fl">🥉 الجائزة 3</label><input class="fc" id="cmp-p3" type="number" value="250000"></div>
+        </div>
+        <button class="btn btn-r btn-full" onclick="createComp()">🏆 إنشاء مسابقة</button>
+      </div>
+      <div class="card">
+        <div class="card-title mb14">المسابقات</div>
+        <div id="cmp-list"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- أدوات عامة -->
+    <div class="adm-pane" id="pane-tools">
+      <div class="card mb16">
+        <div class="card-title mb14">📊 إحصائيات سريعة</div>
+        <div class="g3" id="tools-stats">
+          <div class="stat-tile"><div class="v">…</div><div class="l">إجمالي اللاعبين</div></div>
+          <div class="stat-tile"><div class="v">…</div><div class="l">في السجن</div></div>
+          <div class="stat-tile"><div class="v">…</div><div class="l">محظورون</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title mb14">🎁 هدية جماعية لكل اللاعبين</div>
+        <div class="fg"><label class="fl">المبلغ</label><input class="fc" id="gift-amount" type="number" value="100000"></div>
+        <div class="fg"><label class="fl">السبب</label><input class="fc" id="gift-reason" placeholder="مناسبة الهدية"></div>
+        <button class="btn btn-r btn-full" onclick="giftAll()">🎁 توزيع الهدية على الجميع</button>
+      </div>
+    </div>
+  `;
+
+  loadPlayers('');
+  loadAnnouncements();
+  loadCompetitions();
+  loadStats();
+}
+
+// ====================== تبويبات ======================
+function switchTab(tab) {
+  document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.adm-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('pane-' + tab).classList.add('active');
+}
+
+// ====================== اللاعبون ======================
+let _searchTimer = null;
+function onSearchInput() {
+  clearTimeout(_searchTimer);
+  const q = document.getElementById('pl-search').value.trim();
+  _searchTimer = setTimeout(() => loadPlayers(q), 350);
+}
+
+async function loadPlayers(query) {
+  const box = document.getElementById('pl-results');
+  if (!box) return;
+  box.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const { data, error } = await supabase.rpc('admin_search_players', { p_query: query || '' });
+  if (error) { box.innerHTML = `<div class="empty" style="padding:30px"><div class="ei">⚠️</div><p>${error.message}</p></div>`; return; }
+  if (!data || !data.length) { box.innerHTML = '<div class="empty" style="padding:30px"><div class="ei">🔍</div><p>لا نتائج</p></div>'; return; }
+  window._players = {};
+  box.innerHTML = data.map(p => {
+    window._players[p.id] = p;
+    return `
+    <div class="pl-card">
+      <div class="pl-av">${p.avatar || '🕵️'}</div>
+      <div class="pl-body">
+        <div class="pl-name">${p.username}</div>
+        <div class="pl-badges">
+          <span class="badge badge-b">مستوى ${p.level}</span>
+          <span class="badge badge-gold">${$$(p.cash)}</span>
+          ${p.city ? `<span class="badge">🏙️ ${cityName(p.city)}</span>` : ''}
+          ${p.is_admin ? '<span class="badge badge-gold">👑 مشرف</span>' : ''}
+          ${p.is_banned ? '<span class="badge badge-r">🔨 محظور</span>' : ''}
+          ${p.in_jail ? '<span class="badge badge-r">⛓️ سجن</span>' : ''}
+          ${p.in_hospital ? '<span class="badge badge-r">🏥 مشفى</span>' : ''}
+        </div>
+      </div>
+      <button class="btn btn-r btn-sm" onclick="manage('${p.id}')">إدارة</button>
+    </div>`;
+  }).join('');
+}
+
+function manage(id) {
+  const p = window._players?.[id];
+  if (!p) return;
+  openModal(`
+    <div class="modal-hdr">
+      <span class="modal-title">⚙️ إدارة لاعب</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="adm-modal-hd">
+      <span class="pl-av">${p.avatar || '🕵️'}</span>
+      <div>
+        <div class="pl-name">${p.username}</div>
+        <div class="text-2 text-sm">مستوى ${p.level} · ${$$(p.cash)}</div>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-t">💰 منح / خصم المال</div>
+      <div class="adm-row">
+        <div class="fg"><label class="fl">المبلغ (سالب=خصم)</label><input class="fc" id="m-cash" type="number" value="100000"></div>
+        <div class="fg" style="flex:2"><label class="fl">السبب</label><input class="fc" id="m-cash-r" placeholder="السبب"></div>
+        <button class="btn btn-r btn-sm" onclick="aGiveCash('${id}')">تطبيق</button>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-t">🔧 تعديل إحصائية</div>
+      <div class="adm-row">
+        <div class="fg"><label class="fl">الحقل</label>
+          <select class="fc" id="m-field">${STAT_FIELDS.map(f => `<option value="${f}">${STAT_LABELS[f]}</option>`).join('')}</select>
+        </div>
+        <div class="fg"><label class="fl">القيمة</label><input class="fc" id="m-val" type="number" value="0"></div>
+        <button class="btn btn-r btn-sm" onclick="aSetStat('${id}')">تعيين</button>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-t">⛓️ السجن</div>
+      <div class="adm-row">
+        <div class="fg"><label class="fl">الدقائق</label><input class="fc" id="m-jail-min" type="number" value="30"></div>
+        <button class="btn btn-r btn-sm" onclick="aJail('${id}',true)">سجن</button>
+        <button class="btn btn-g btn-sm" onclick="aJail('${id}',false)">إطلاق سراح</button>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-t">🏥 المشفى</div>
+      <div class="adm-row">
+        <div class="fg"><label class="fl">الدقائق</label><input class="fc" id="m-hosp-min" type="number" value="30"></div>
+        <button class="btn btn-r btn-sm" onclick="aHosp('${id}',true)">إدخال المشفى</button>
+        <button class="btn btn-g btn-sm" onclick="aHosp('${id}',false)">شفاء</button>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-t">⚡ إنعاش كامل</div>
+      <button class="btn btn-g btn-full btn-sm" onclick="aRefill('${id}')">شحن الطاقة والصحة والإرادة بالكامل</button>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-t">🔨 الحظر</div>
+      <div class="adm-row">
+        <div class="fg" style="flex:2"><label class="fl">سبب الحظر</label><input class="fc" id="m-ban-r" placeholder="السبب"></div>
+        <button class="btn btn-r btn-sm" onclick="aBan('${id}',true)">حظر</button>
+        <button class="btn btn-g btn-sm" onclick="aBan('${id}',false)">رفع الحظر</button>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-t">👑 صلاحية الإشراف</div>
+      <div class="flex gap8">
+        <button class="btn btn-gold btn-full btn-sm" onclick="aAdmin('${id}',true)">ترقية لمشرف</button>
+        <button class="btn btn-ghost btn-full btn-sm" onclick="aAdmin('${id}',false)">سحب الإشراف</button>
+      </div>
+    </div>
+  `);
+}
+
+async function refreshAfter() {
+  closeModal();
+  const q = document.getElementById('pl-search')?.value.trim() || '';
+  await loadPlayers(q);
+}
+
+async function rpcAct(fn, args) {
+  const { data, error } = await supabase.rpc(fn, args);
+  const ok = data?.success;
+  toast(data?.message || error?.message || 'حدث خطأ', ok ? 's' : 'e');
+  return ok;
+}
+
+async function aGiveCash(id) {
+  const amt = parseInt(document.getElementById('m-cash').value) || 0;
+  const reason = document.getElementById('m-cash-r').value || null;
+  if (await rpcAct('admin_give_cash', { p_target: id, p_amount: amt, p_reason: reason })) refreshAfter();
+}
+async function aSetStat(id) {
+  const field = document.getElementById('m-field').value;
+  const value = parseInt(document.getElementById('m-val').value) || 0;
+  if (await rpcAct('admin_set_stat', { p_target: id, p_field: field, p_value: value })) refreshAfter();
+}
+async function aJail(id, jail) {
+  const min = parseInt(document.getElementById('m-jail-min').value) || 30;
+  if (await rpcAct('admin_set_jail', { p_target: id, p_jail: jail, p_minutes: min })) refreshAfter();
+}
+async function aHosp(id, hosp) {
+  const min = parseInt(document.getElementById('m-hosp-min').value) || 30;
+  if (await rpcAct('admin_set_hospital', { p_target: id, p_hosp: hosp, p_minutes: min })) refreshAfter();
+}
+async function aRefill(id) {
+  if (await rpcAct('admin_refill', { p_target: id })) refreshAfter();
+}
+async function aBan(id, ban) {
+  const reason = document.getElementById('m-ban-r').value || null;
+  if (await rpcAct('admin_set_ban', { p_target: id, p_ban: ban, p_reason: reason })) refreshAfter();
+}
+async function aAdmin(id, make) {
+  if (await rpcAct('admin_set_admin', { p_target: id, p_make_admin: make })) refreshAfter();
+}
+
+// ====================== الإعلانات ======================
+async function loadAnnouncements() {
+  const box = document.getElementById('ann-list');
+  if (!box) return;
+  const { data } = await supabase.from('announcements').select('*').eq('active', true).order('pinned', { ascending: false }).order('created_at', { ascending: false });
+  if (!data || !data.length) { box.innerHTML = '<div class="empty" style="padding:30px"><div class="ei">📭</div><p>لا إعلانات نشطة</p></div>'; return; }
+  box.innerHTML = data.map(a => `
+    <div class="ann-row">
+      <div style="flex:1;min-width:0">
+        <div class="flex flex-wrap gap6 mb6">
+          <span class="badge ${TYPE_BADGE[a.type] || 'badge-b'}">${TYPE_LABELS[a.type] || a.type}</span>
+          ${a.pinned ? '<span class="badge badge-gold">📌 مثبّت</span>' : ''}
+          <span class="badge">${relTime(a.created_at)}</span>
+        </div>
+        <div class="bold">${a.title}</div>
+        <div class="text-2 text-sm" style="margin-top:3px">${a.body || ''}</div>
+        ${a.author_name ? `<div class="text-2 text-sm" style="margin-top:4px">✍️ ${a.author_name}</div>` : ''}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="delAnn('${a.id}')">🗑️</button>
+    </div>
+  `).join('');
+}
+
+async function postAnn() {
+  const title = document.getElementById('ann-title').value.trim();
+  const body = document.getElementById('ann-body').value.trim();
+  if (!title) { toast('أدخل عنوان الإعلان', 'w'); return; }
+  const type = document.getElementById('ann-type').value;
+  const pinned = document.getElementById('ann-pin').checked;
+  const { data, error } = await supabase.rpc('admin_post_announcement', { p_title: title, p_body: body, p_type: type, p_pinned: pinned });
+  toast(data?.message || error?.message, data?.success ? 's' : 'e');
+  if (data?.success) {
+    document.getElementById('ann-title').value = '';
+    document.getElementById('ann-body').value = '';
+    document.getElementById('ann-pin').checked = false;
+    loadAnnouncements();
+  }
+}
+
+function delAnn(id) {
+  confirm('هل تريد حذف هذا الإعلان؟', async () => {
+    const { data, error } = await supabase.rpc('admin_delete_announcement', { p_id: id });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) loadAnnouncements();
+  });
+}
+
+// ====================== المسابقات ======================
+async function loadCompetitions() {
+  const box = document.getElementById('cmp-list');
+  if (!box) return;
+  const { data } = await supabase.from('competitions').select('*').order('created_at', { ascending: false });
+  if (!data || !data.length) { box.innerHTML = '<div class="empty" style="padding:30px"><div class="ei">🏁</div><p>لا مسابقات</p></div>'; return; }
+  box.innerHTML = data.map(c => {
+    const active = c.status === 'active';
+    const isManual = c.metric === 'manual';
+    return `
+    <div class="comp-row">
+      <div class="flex flex-wrap gap6 mb6">
+        <span class="badge ${active ? 'badge-g' : 'badge'}">${active ? '🟢 نشطة' : '⚫ منتهية'}</span>
+        <span class="badge badge-b">${METRIC_LABELS[c.metric] || c.metric}</span>
+        <span class="badge badge-gold">🥇 ${$$(c.prize)}</span>
+        ${c.ends_at ? `<span class="badge">⏰ ${active ? (timeLeft(c.ends_at) || 'انتهى الوقت') : relTime(c.ends_at)}</span>` : ''}
+      </div>
+      <div class="bold">${c.title}</div>
+      <div class="text-2 text-sm" style="margin-top:3px">${c.description || ''}</div>
+      ${c.winner_name ? `<div class="text-sm" style="margin-top:5px;color:var(--gold)">🏆 الفائز: ${c.winner_name}</div>` : ''}
+      ${active ? `<button class="btn btn-r btn-full btn-sm" style="margin-top:10px" onclick="endComp('${c.id}','${c.title.replace(/'/g,"\\'")}')">🏁 إنهاء وتوزيع الجوائز</button>` : ''}
+      ${active && isManual ? `
+        <div class="adm-sec" style="margin-top:8px">
+          <div class="adm-sec-t">🎖️ منح جائزة يدوية</div>
+          <div class="fg"><input class="fc" id="aw-q-${c.id}" placeholder="ابحث عن لاعب..." oninput="awSearch('${c.id}')"></div>
+          <div id="aw-res-${c.id}"></div>
+          <div class="adm-row">
+            <div class="fg"><label class="fl">المبلغ</label><input class="fc" id="aw-amt-${c.id}" type="number" value="500000"></div>
+            <button class="btn btn-g btn-sm" id="aw-btn-${c.id}" disabled onclick="awardPlayer('${c.id}')">منح</button>
+          </div>
+          <input type="hidden" id="aw-target-${c.id}">
+        </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function createComp() {
+  const title = document.getElementById('cmp-title').value.trim();
+  if (!title) { toast('أدخل عنوان المسابقة', 'w'); return; }
+  const args = {
+    p_title: title,
+    p_desc: document.getElementById('cmp-desc').value.trim(),
+    p_metric: document.getElementById('cmp-metric').value,
+    p_prize: parseInt(document.getElementById('cmp-p1').value) || 0,
+    p_prize2: parseInt(document.getElementById('cmp-p2').value) || 0,
+    p_prize3: parseInt(document.getElementById('cmp-p3').value) || 0,
+    p_hours: parseInt(document.getElementById('cmp-hours').value) || 24
+  };
+  const { data, error } = await supabase.rpc('admin_create_competition', args);
+  toast(data?.message || error?.message, data?.success ? 's' : 'e');
+  if (data?.success) {
+    document.getElementById('cmp-title').value = '';
+    document.getElementById('cmp-desc').value = '';
+    loadCompetitions();
+    loadAnnouncements();
+  }
+}
+
+function endComp(id, title) {
+  confirm(`هل تريد إنهاء مسابقة "${title}" وتوزيع الجوائز؟`, async () => {
+    const { data, error } = await supabase.rpc('admin_end_competition', { p_comp_id: id });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) { loadCompetitions(); loadAnnouncements(); }
+  });
+}
+
+const _awTimers = {};
+function awSearch(compId) {
+  clearTimeout(_awTimers[compId]);
+  const q = document.getElementById('aw-q-' + compId).value.trim();
+  _awTimers[compId] = setTimeout(async () => {
+    const box = document.getElementById('aw-res-' + compId);
+    if (!q) { box.innerHTML = ''; return; }
+    const { data } = await supabase.rpc('admin_search_players', { p_query: q });
+    if (!data || !data.length) { box.innerHTML = '<div class="text-2 text-sm" style="margin-bottom:8px">لا نتائج</div>'; return; }
+    box.innerHTML = '<div style="margin-bottom:8px;display:flex;flex-direction:column;gap:4px">' + data.slice(0, 6).map(p =>
+      `<div class="pl-card" style="padding:7px 10px;margin:0;cursor:pointer" onclick="awPick('${compId}','${p.id}','${p.username.replace(/'/g,"\\'")}')">
+        <span class="pl-av" style="font-size:1.2rem;width:24px">${p.avatar || '🕵️'}</span>
+        <span class="pl-name">${p.username}</span>
+        <span class="badge badge-b">مستوى ${p.level}</span>
+      </div>`).join('') + '</div>';
+  }, 350);
+}
+function awPick(compId, id, name) {
+  document.getElementById('aw-target-' + compId).value = id;
+  document.getElementById('aw-q-' + compId).value = name;
+  document.getElementById('aw-res-' + compId).innerHTML = `<div class="text-sm" style="color:var(--green);margin-bottom:8px">✅ تم اختيار: ${name}</div>`;
+  document.getElementById('aw-btn-' + compId).disabled = false;
+}
+async function awardPlayer(compId) {
+  const target = document.getElementById('aw-target-' + compId).value;
+  if (!target) { toast('اختر لاعباً أولاً', 'w'); return; }
+  const amount = parseInt(document.getElementById('aw-amt-' + compId).value) || 0;
+  const { data, error } = await supabase.rpc('admin_award_player', { p_comp_id: compId, p_target: target, p_amount: amount });
+  toast(data?.message || error?.message, data?.success ? 's' : 'e');
+  if (data?.success) loadCompetitions();
+}
+
+// ====================== أدوات عامة ======================
+function giftAll() {
+  const amount = parseInt(document.getElementById('gift-amount').value) || 0;
+  const reason = document.getElementById('gift-reason').value || null;
+  confirm(`هل تريد منح ${$$(amount)} لكل اللاعبين؟`, async () => {
+    const { data, error } = await supabase.rpc('admin_gift_all', { p_amount: amount, p_reason: reason });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) { loadStats(); loadAnnouncements(); }
+  });
+}
+
+async function loadStats() {
+  const box = document.getElementById('tools-stats');
+  if (!box) return;
+  const [total, jail, banned] = await Promise.all([
+    supabase.from('players').select('*', { count: 'exact', head: true }),
+    supabase.from('players').select('*', { count: 'exact', head: true }).eq('in_jail', true),
+    supabase.from('players').select('*', { count: 'exact', head: true }).eq('is_banned', true)
+  ]);
+  box.innerHTML = `
+    <div class="stat-tile"><div class="v">${num(total.count || 0)}</div><div class="l">إجمالي اللاعبين</div></div>
+    <div class="stat-tile"><div class="v">${num(jail.count || 0)}</div><div class="l">في السجن</div></div>
+    <div class="stat-tile"><div class="v">${num(banned.count || 0)}</div><div class="l">محظورون</div></div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

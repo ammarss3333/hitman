@@ -34,7 +34,8 @@ async function init() {
   const [
     { data: events },
     { data: attacks },
-    { data: recentAttacks }
+    { data: recentAttacks },
+    { data: announcements }
   ] = await Promise.all([
     supabase.from('events').select('*').eq('player_id', player.id)
       .order('created_at', { ascending: false }).limit(6),
@@ -42,7 +43,9 @@ async function init() {
       .or(`attacker_id.eq.${player.id},defender_id.eq.${player.id}`)
       .order('created_at', { ascending: false }).limit(3),
     supabase.from('attacks').select('attacker_name,defender_name,money_stolen,winner_id,created_at')
-      .order('created_at', { ascending: false }).limit(20)
+      .order('created_at', { ascending: false }).limit(20),
+    supabase.from('announcements').select('*').eq('active', true)
+      .order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(5)
   ]);
 
   const now = new Date();
@@ -60,6 +63,10 @@ async function init() {
   // duplicate for infinite scroll
   const tickerHTML = [...tickerItems, ...tickerItems].join('<span class="ticker-item" style="color:var(--red)">⚔️</span>');
 
+  const annColors = { info:'rgba(68,138,255,.12)', warning:'rgba(255,152,0,.1)', event:'rgba(170,68,255,.1)', prize:'rgba(255,215,0,.1)' };
+  const annBorder = { info:'rgba(68,138,255,.3)', warning:'rgba(255,152,0,.3)', event:'rgba(170,68,255,.3)', prize:'rgba(255,215,0,.3)' };
+  const annIcon   = { info:'📢', warning:'⚠️', event:'🎉', prize:'🏆' };
+
   document.getElementById('main').innerHTML = `
     <!-- ticker -->
     ${tickerItems.length > 0 ? `
@@ -67,6 +74,19 @@ async function init() {
       <span class="ticker-label">🔴 مباشر</span>
       <div class="ticker-track"><div class="ticker-inner">${tickerHTML}</div></div>
     </div>` : ''}
+
+    <!-- إعلانات الإدارة -->
+    ${(announcements && announcements.length > 0) ? announcements.map(a => `
+    <div style="background:${annColors[a.type]||annColors.info};border:1px solid ${annBorder[a.type]||annBorder.info};border-radius:var(--r);padding:14px 16px;margin-bottom:12px;animation:fadeUp .4s ease;${a.pinned?'border-right:4px solid var(--gold)':''}">
+      <div class="flex items-c gap10">
+        <span style="font-size:1.5rem;flex-shrink:0">${annIcon[a.type]||'📢'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:.9rem">${a.pinned?'📌 ':''} ${a.title}</div>
+          ${a.body ? `<div class="text-2 text-sm" style="margin-top:3px">${a.body}</div>` : ''}
+          ${a.author_name ? `<div style="font-size:.7rem;color:var(--muted);margin-top:4px">✍️ الإدارة · ${relTime(a.created_at)}</div>` : ''}
+        </div>
+      </div>
+    </div>`).join('') : ''}
 
     <!-- page header -->
     <div class="page-hdr">

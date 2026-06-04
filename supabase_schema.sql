@@ -58,9 +58,15 @@ CREATE TABLE IF NOT EXISTS public.players (
   gang_id UUID,
 
   -- مواعيد
-  last_energy_regen TIMESTAMPTZ DEFAULT NOW(),
-  last_active TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  last_energy_regen  TIMESTAMPTZ DEFAULT NOW(),
+  last_active        TIMESTAMPTZ DEFAULT NOW(),
+  last_daily_bonus   TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ DEFAULT NOW(),
+
+  -- الإشراف
+  is_admin   BOOLEAN DEFAULT FALSE,
+  is_banned  BOOLEAN DEFAULT FALSE,
+  ban_reason TEXT
 );
 
 -- جدول العصابات
@@ -80,6 +86,38 @@ CREATE TABLE IF NOT EXISTS public.gangs (
   logo TEXT DEFAULT '💀',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- جدول الإعلانات
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title       TEXT NOT NULL,
+  body        TEXT DEFAULT '',
+  type        TEXT DEFAULT 'info',
+  author_name TEXT,
+  pinned      BOOLEAN DEFAULT FALSE,
+  active      BOOLEAN DEFAULT TRUE,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "ann_read" ON public.announcements FOR SELECT USING (true);
+
+-- جدول المسابقات
+CREATE TABLE IF NOT EXISTS public.competitions (
+  id           UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title        TEXT NOT NULL,
+  description  TEXT DEFAULT '',
+  metric       TEXT DEFAULT 'cash',
+  prize        INTEGER DEFAULT 0,
+  prize2       INTEGER DEFAULT 0,
+  prize3       INTEGER DEFAULT 0,
+  status       TEXT DEFAULT 'active',
+  winner_id    UUID,
+  winner_name  TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  ends_at      TIMESTAMPTZ
+);
+ALTER TABLE public.competitions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "comp_read" ON public.competitions FOR SELECT USING (true);
 
 -- ربط gang_id في جدول اللاعبين بجدول العصابات (مفتاح خارجي)
 -- هذا ضروري حتى يتعرف Supabase/PostgREST على العلاقة players -> gangs
