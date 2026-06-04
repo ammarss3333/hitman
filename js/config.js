@@ -8,9 +8,11 @@
 const SUPABASE_URL = 'https://slhnvntvgsozplgepagr.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_Sb_7ImVHv_R_f-4FQiFbtw_4jO0gRY2';
 
-// إنشاء العميل وتخزينه على window لتجنب تعارض الأسماء
-// نستخدم sessionStorage بدلاً من localStorage لتجنب حجب المتصفح
-window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+// مكتبة Supabase تنشئ متغيراً عاماً اسمه supabase.
+// نأخذ نسخة من المكتبة أولاً ثم نستبدل window.supabase بالعميل.
+// لا نستخدم "const supabase" لأنه يتعارض مع المتغير العام ويُعطّل الملف بالكامل.
+var _sbLib = window.supabase;
+window.supabase = _sbLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: window.sessionStorage,
     autoRefreshToken: true,
@@ -18,9 +20,7 @@ window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, 
     detectSessionInUrl: true
   }
 });
-
-// اختصار مريح
-const supabase = window.supabase;
+// الآن أي إشارة إلى "supabase" في باقي الملفات تشير إلى window.supabase (العميل).
 
 // أسماء المدن
 const CITIES = {

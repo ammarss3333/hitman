@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>قاتل مأجور – دخول</title>
+<link rel="icon" href="favicon.svg">
 <link rel="stylesheet" href="css/style.css">
 <style>
 body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
@@ -125,25 +126,43 @@ async function doRegister() {
   if (!/^[a-zA-Z0-9_؀-ۿ]+$/.test(name)) { showErr('r-err', 'اسم اللاعب يحتوي على رموز غير مسموحة'); return; }
   if (pass.length < 8) { showErr('r-err', 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'); return; }
 
-  // التحقق من الاسم
-  const { data: existing } = await supabase.from('players').select('id').eq('username', name).maybeSingle();
-  if (existing) { showErr('r-err', 'اسم اللاعب مستخدم بالفعل'); return; }
-
   const btn = document.getElementById('r-btn');
   btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
 
-  const { error } = await supabase.auth.signUp({
-    email, password: pass,
-    options: { data: { username: name } }
-  });
+  try {
+    // التحقق من توفر الاسم
+    const { data: existing, error: chkErr } = await supabase.from('players').select('id').eq('username', name).maybeSingle();
+    if (chkErr) throw chkErr;
+    if (existing) {
+      showErr('r-err', 'اسم اللاعب مستخدم بالفعل');
+      btn.disabled = false; btn.textContent = 'إنشاء حساب 🎯';
+      return;
+    }
 
-  if (error) {
-    showErr('r-err', error.message.includes('already') ? 'البريد الإلكتروني مستخدم بالفعل' : error.message);
-    btn.disabled = false; btn.textContent = 'إنشاء حساب 🎯';
-  } else {
+    const { data, error } = await supabase.auth.signUp({
+      email, password: pass,
+      options: { data: { username: name } }
+    });
+
+    if (error) {
+      showErr('r-err', error.message.includes('already') ? 'البريد الإلكتروني مستخدم بالفعل' : error.message);
+      btn.disabled = false; btn.textContent = 'إنشاء حساب 🎯';
+      return;
+    }
+
+    // إذا كان تأكيد البريد مفعّلاً، لن توجد جلسة
+    if (!data.session) {
+      showErr('r-err', 'تم إنشاء الحساب! لكن تأكيد البريد مفعّل. عطّله من Supabase → Authentication → Sign In/Providers → Email → Confirm email = OFF، أو أكّد بريدك ثم سجّل دخول.');
+      btn.disabled = false; btn.textContent = 'إنشاء حساب 🎯';
+      return;
+    }
+
     btn.textContent = '✅ تم إنشاء الحساب!';
     toast('مرحباً بك! جاري الدخول...', 's');
     setTimeout(() => window.location.href = 'home.html', 1200);
+  } catch (e) {
+    showErr('r-err', 'خطأ في الاتصال: ' + (e.message || e));
+    btn.disabled = false; btn.textContent = 'إنشاء حساب 🎯';
   }
 }
 
