@@ -217,17 +217,12 @@ async function confirmSell(invId) {
 
 async function buyFromMarket(mktId, name, price, invId) {
   confirm(`شراء "${name}" من السوق بـ ${$$(price)}؟`, async () => {
-    // نقل السلاح للمشتري
-    await supabase.from('players').update({ cash: player.cash - price }).eq('id', player.id);
-    await supabase.from('market').select('seller_id').eq('id', mktId).single().then(async ({data}) => {
-      if (data) {
-        const { data: seller } = await supabase.from('players').select('cash').eq('id', data.seller_id).single();
-        await supabase.from('players').update({ cash: seller.cash + price }).eq('id', data.seller_id);
-      }
-    });
-    await supabase.from('inventory').update({ player_id: player.id, for_sale: false, sale_price: null, equipped: false }).eq('id', invId);
-    await supabase.from('market').delete().eq('id', mktId);
-    toast(`تم شراء ${name}!`, 's');
+    const { data, error } = await supabase.rpc('buy_from_market', { p_market_id: mktId });
+    if (error || !data?.success) {
+      toast(data?.message || 'فشل الشراء، حاول مجدداً', 'e');
+      return;
+    }
+    toast(data.message || `تم شراء ${name}!`, 's');
     await init();
   });
 }
