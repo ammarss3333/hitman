@@ -76,7 +76,8 @@ async function buildNav(activePage) {
   const auth = await requireAuth();
   if (!auth) return;
 
-  const player = await loadPlayer();
+  // دائماً نجلب بيانات حديثة حتى تظهر الإحصائيات الجديدة فوراً بعد أي إجراء
+  const player = await loadPlayer(true);
   if (!player) { logout(); return; }
 
   // حالة اللاعب
