@@ -828,41 +828,70 @@ ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stocks ENABLE ROW LEVEL SECURITY;
 
 -- سياسات الأمن
+DROP POLICY IF EXISTS "p_sel" ON players;
 CREATE POLICY "p_sel" ON players FOR SELECT USING (true);
+DROP POLICY IF EXISTS "p_ins" ON players;
 CREATE POLICY "p_ins" ON players FOR INSERT WITH CHECK (auth.uid()=id);
+DROP POLICY IF EXISTS "p_upd" ON players;
 CREATE POLICY "p_upd" ON players FOR UPDATE USING (auth.uid()=id);
 
+DROP POLICY IF EXISTS "g_sel" ON gangs;
 CREATE POLICY "g_sel" ON gangs FOR SELECT USING (true);
+DROP POLICY IF EXISTS "g_ins" ON gangs;
 CREATE POLICY "g_ins" ON gangs FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "g_upd" ON gangs;
 CREATE POLICY "g_upd" ON gangs FOR UPDATE USING (auth.uid()=leader_id);
 
+DROP POLICY IF EXISTS "gm_sel" ON gang_members;
 CREATE POLICY "gm_sel" ON gang_members FOR SELECT USING (true);
+DROP POLICY IF EXISTS "gm_ins" ON gang_members;
 CREATE POLICY "gm_ins" ON gang_members FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "gm_del" ON gang_members;
 CREATE POLICY "gm_del" ON gang_members FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS "inv_sel" ON inventory;
 CREATE POLICY "inv_sel" ON inventory FOR SELECT USING (auth.uid()=player_id);
+DROP POLICY IF EXISTS "inv_ins" ON inventory;
 CREATE POLICY "inv_ins" ON inventory FOR INSERT WITH CHECK (auth.uid()=player_id);
+DROP POLICY IF EXISTS "inv_upd" ON inventory;
 CREATE POLICY "inv_upd" ON inventory FOR UPDATE USING (auth.uid()=player_id);
 
+DROP POLICY IF EXISTS "mkt_sel" ON market;
 CREATE POLICY "mkt_sel" ON market FOR SELECT USING (true);
+DROP POLICY IF EXISTS "mkt_ins" ON market;
 CREATE POLICY "mkt_ins" ON market FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "mkt_del" ON market;
 CREATE POLICY "mkt_del" ON market FOR DELETE USING (auth.uid()=seller_id);
 
+DROP POLICY IF EXISTS "msg_sel" ON messages;
 CREATE POLICY "msg_sel" ON messages FOR SELECT USING (auth.uid()=from_id OR auth.uid()=to_id);
+DROP POLICY IF EXISTS "msg_ins" ON messages;
 CREATE POLICY "msg_ins" ON messages FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "msg_upd" ON messages;
 CREATE POLICY "msg_upd" ON messages FOR UPDATE USING (auth.uid()=to_id);
 
+DROP POLICY IF EXISTS "evt_sel" ON events;
 CREATE POLICY "evt_sel" ON events FOR SELECT USING (auth.uid()=player_id);
+DROP POLICY IF EXISTS "atk_sel" ON attacks;
 CREATE POLICY "atk_sel" ON attacks FOR SELECT USING (auth.uid()=attacker_id OR auth.uid()=defender_id);
+DROP POLICY IF EXISTS "pc_sel" ON player_courses;
 CREATE POLICY "pc_sel" ON player_courses FOR SELECT USING (auth.uid()=player_id);
+DROP POLICY IF EXISTS "pp_sel" ON player_properties;
 CREATE POLICY "pp_sel" ON player_properties FOR SELECT USING (auth.uid()=player_id);
+DROP POLICY IF EXISTS "ps_sel" ON player_stocks;
 CREATE POLICY "ps_sel" ON player_stocks FOR SELECT USING (auth.uid()=player_id);
 
+DROP POLICY IF EXISTS "wpn_sel" ON weapons;
 CREATE POLICY "wpn_sel" ON weapons FOR SELECT USING (true);
+DROP POLICY IF EXISTS "crm_sel" ON crimes;
 CREATE POLICY "crm_sel" ON crimes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "job_sel" ON jobs;
 CREATE POLICY "job_sel" ON jobs FOR SELECT USING (true);
+DROP POLICY IF EXISTS "crs_sel" ON courses;
 CREATE POLICY "crs_sel" ON courses FOR SELECT USING (true);
+DROP POLICY IF EXISTS "prp_sel" ON properties;
 CREATE POLICY "prp_sel" ON properties FOR SELECT USING (true);
+DROP POLICY IF EXISTS "stk_sel" ON stocks;
 CREATE POLICY "stk_sel" ON stocks FOR SELECT USING (true);
 
 -- =====================================================
