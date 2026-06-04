@@ -185,6 +185,8 @@ async function attackPlayer() {
 
   if (error) { toast(error.message, 'e'); btn.disabled = false; btn.textContent = '⚔️ هجوم'; return; }
 
+  supabase.rpc('bump_daily', { p_kind: 'attack' });
+
   // عرض نتيجة المعركة
   setTimeout(() => data.attacker_wins ? sfxWin() : sfxLose(), 300);
   showCombatResult(data);

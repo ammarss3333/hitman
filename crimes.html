@@ -124,6 +124,8 @@ async function doCrime(crimeId) {
     return;
   }
 
+  supabase.rpc('bump_daily', { p_kind: 'crime' });
+
   if (data.success) {
     // نجاح
     sfxSuccess();

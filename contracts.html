@@ -146,6 +146,8 @@ async function doContract(id, btn) {
   const { data, error } = await supabase.rpc('attempt_contract', { p_contract_id: id });
   if (error) { toast(error.message, 'e'); btn.disabled = false; btn.textContent = 'تنفيذ العقد 🔪'; return; }
 
+  supabase.rpc('bump_daily', { p_kind: 'attack' });
+
   if (!data.success) {
     sfxFail();
     toast(data.message, 'e', 5000);

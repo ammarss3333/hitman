@@ -162,6 +162,7 @@ async function doTrain() {
     return;
   }
 
+  supabase.rpc('bump_daily', { p_kind: 'train' });
   sfxTrain();
   toast(`${data.message} 💪`, 's');
   await init();

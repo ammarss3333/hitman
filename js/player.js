@@ -96,8 +96,10 @@ async function buildNav(activePage) {
 
   const pages = [
     { icon: '🏠', label: 'الصفحة الرئيسية', href: 'home.html',        id: 'home' },
+    { icon: '✅', label: 'المهام اليومية',    href: 'tasks.html',       id: 'tasks' },
     { icon: '🌆', label: 'المدينة',           href: 'city.html',        id: 'city' },
     { icon: '🔪', label: 'الجرائم',           href: 'crimes.html',      id: 'crimes' },
+    { icon: '🎯', label: 'عقود الاغتيال',     href: 'contracts.html',   id: 'contracts' },
     { icon: '💪', label: 'النادي الرياضي',    href: 'gym.html',         id: 'gym' },
     { icon: '💼', label: 'العمل',             href: 'work.html',        id: 'work' },
     { icon: '🏦', label: 'البنك',             href: 'bank.html',        id: 'bank' },

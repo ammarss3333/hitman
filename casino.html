@@ -369,6 +369,7 @@ async function spinSlots() {
 
   // Call RPC
   const { data, error } = await supabase.rpc('play_slots', { p_bet: betVal });
+  if (!error) supabase.rpc('bump_daily', { p_kind: 'casino' });
 
   // Stop spin after at least 1.2s
   await new Promise(r => setTimeout(r, 1200));
@@ -469,6 +470,7 @@ async function rollDice() {
   }, 100);
 
   const { data, error } = await supabase.rpc('play_dice', { p_bet: betVal, p_choice: diceChoice });
+  if (!error) supabase.rpc('bump_daily', { p_kind: 'casino' });
 
   await new Promise(r => setTimeout(r, 900));
   clearInterval(rollInterval);
