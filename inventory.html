@@ -6,6 +6,137 @@
 <title>المستودع – قاتل مأجور</title>
 <link rel="icon" href="favicon.svg">
 <link rel="stylesheet" href="css/style.css">
+<style>
+/* ===== بطاقة السلاح المحسّنة ===== */
+.wpn-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color .2s, box-shadow .2s;
+  position: relative;
+  overflow: hidden;
+}
+.wpn-card.equipped {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(212,175,55,.25);
+}
+.wpn-card.locked {
+  opacity: .55;
+}
+/* شريط الفئة الجانبي */
+.wpn-cat-stripe {
+  position: absolute;
+  top: 0; right: 0;
+  width: 3px;
+  height: 100%;
+  border-radius: 0 var(--r2) var(--r2) 0;
+}
+/* صورة السلاح */
+.wpn-img-wrap {
+  width: 100%;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.wpn-img-wrap img {
+  height: 32px;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,.15));
+}
+/* رأس البطاقة */
+.wpn-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wpn-name {
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--text1);
+  line-height: 1.3;
+}
+.wpn-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.badge-cat {
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #fff;
+  letter-spacing: .3px;
+}
+.badge-range {
+  font-size: .62rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+/* الوصف */
+.wpn-desc {
+  font-size: .68rem;
+  color: var(--text2);
+  font-style: italic;
+  line-height: 1.4;
+  border-right: 2px solid var(--border);
+  padding-right: 6px;
+}
+/* شريط الدقة */
+.accuracy-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .65rem;
+  color: var(--text2);
+}
+.accuracy-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.accuracy-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #f39c12, #27ae60);
+}
+/* ===== فلاتر الفئات ===== */
+.cat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.cat-btn {
+  font-size: .7rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text2);
+  cursor: pointer;
+  transition: all .15s;
+}
+.cat-btn.active, .cat-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(212,175,55,.1);
+}
+</style>
 </head>
 <body>
 <button class="mob-toggle" id="mob-toggle">☰</button>
@@ -24,7 +155,90 @@
 <script src="js/sounds.js"></script>
 <script>
 let player;
+let allShopWpns = [];
+let allMktItems = [];
+let activeShopCat = 'all';
+let activeMktCat  = 'all';
 
+/* ---- helpers ---- */
+function getCatColor(cat) {
+  return (WEAPON_CATEGORIES[cat] || {}).color || '#888';
+}
+function getCatLabel(cat) {
+  return (WEAPON_CATEGORIES[cat] || WEAPON_TYPES[cat] || {}).label
+      || (WEAPON_CATEGORIES[cat] || WEAPON_TYPES[cat] || {}).name
+      || cat;
+}
+function getRangeLabel(r) { return (RANGE_LABELS[r] || {}).name || r || ''; }
+function getRangeColor(r) { return (RANGE_LABELS[r] || {}).color || '#888'; }
+function getSvgSrc(cat, type) {
+  const key = cat || type || 'rifle';
+  return WEAPON_SVGS[key] || WEAPON_SVGS['rifle'];
+}
+
+function renderAccuracy(acc) {
+  if (!acc || acc === 0) return '';
+  return `
+    <div class="accuracy-row">
+      <span>دقة</span>
+      <div class="accuracy-bar">
+        <div class="accuracy-fill" style="width:${acc}%"></div>
+      </div>
+      <span>${acc}%</span>
+    </div>`;
+}
+
+function renderWeaponCard(w, opts) {
+  opts = opts || {};
+  const cat        = w.category || w.type;
+  const catColor   = getCatColor(cat);
+  const catLabel   = getCatLabel(cat);
+  const rangeLabel = getRangeLabel(w.range_type);
+  const rangeColor = getRangeColor(w.range_type);
+  const svgSrc     = getSvgSrc(w.category, w.type);
+  const desc       = w.description ? `<div class="wpn-desc">${w.description}</div>` : '';
+  const accBar     = renderAccuracy(w.accuracy);
+
+  return `
+    <div class="wpn-card${opts.equipped ? ' equipped' : ''}${opts.locked ? ' locked' : ''}">
+      <div class="wpn-cat-stripe" style="background:${catColor}"></div>
+
+      <div class="wpn-img-wrap">
+        <img src="${svgSrc}" alt="${w.name}" loading="lazy">
+      </div>
+
+      <div class="wpn-header">
+        <div class="wpn-name">${w.name}</div>
+        <div class="wpn-badges">
+          <span class="badge-cat" style="background:${catColor}">${catLabel}</span>
+          ${rangeLabel ? `<span class="badge-range" style="color:${rangeColor};border-color:${rangeColor}">${rangeLabel}</span>` : ''}
+        </div>
+      </div>
+
+      ${desc}
+      ${accBar}
+
+      <div class="wpn-stats">
+        ${w.attack_bonus  ? `<span class="badge badge-r">⚔️ +${w.attack_bonus}</span>`  : ''}
+        ${w.defense_bonus ? `<span class="badge badge-b">🛡️ +${w.defense_bonus}</span>` : ''}
+      </div>
+
+      ${opts.footer || ''}
+    </div>`;
+}
+
+function buildCatFilters(items, activecat, onClickFn) {
+  const cats = ['all', ...new Set(items.map(i => i.category || i.type).filter(Boolean))];
+  return `<div class="cat-filters">
+    ${cats.map(c => `
+      <button class="cat-btn${c === activecat ? ' active' : ''}"
+        onclick="${onClickFn}('${c}',this)">
+        ${c === 'all' ? 'كل الأسلحة' : (WEAPON_CATEGORIES[c] ? WEAPON_CATEGORIES[c].name : c)}
+      </button>`).join('')}
+  </div>`;
+}
+
+/* ---- init ---- */
 async function init() {
   player = await buildNav('inventory');
   if (!player) return;
@@ -32,13 +246,17 @@ async function init() {
   const [{ data: inv }, { data: shopWpns }, { data: mktItems }] = await Promise.all([
     supabase.from('inventory').select('*, weapons(*)').eq('player_id', player.id),
     supabase.from('weapons').select('*').order('price'),
-    supabase.from('market').select('*').order('price').limit(20)
+    supabase.from('market').select('*').order('price').limit(40)
   ]);
 
-  // قوة الهجوم والدفاع المجهزة
+  allShopWpns = shopWpns || [];
+  allMktItems = mktItems || [];
+
   const equipped = inv?.filter(i => i.equipped) || [];
-  const atkBonus = equipped.filter(i=>i.weapons?.type!=='armor').reduce((s,i)=>s+i.weapons?.attack_bonus,0);
-  const defBonus = equipped.filter(i=>i.weapons?.type==='armor').reduce((s,i)=>s+i.weapons?.defense_bonus,0);
+  const atkBonus = equipped.filter(i => i.weapons?.type !== 'armor')
+                           .reduce((s,i) => s + (i.weapons?.attack_bonus || 0), 0);
+  const defBonus = equipped.filter(i => i.weapons?.type === 'armor')
+                           .reduce((s,i) => s + (i.weapons?.defense_bonus || 0), 0);
 
   document.getElementById('main').innerHTML = `
     <div class="page-hdr">
@@ -49,7 +267,6 @@ async function init() {
       </div>
     </div>
 
-    <!-- ملخص القوة -->
     <div class="g4 mb16">
       <div class="stat-c"><div class="si">⚔️</div><div class="sv">${atkBonus}</div><div class="sl">قوة الهجوم</div></div>
       <div class="stat-c"><div class="si">🛡️</div><div class="sv">${defBonus}</div><div class="sl">قوة الدفاع</div></div>
@@ -57,11 +274,10 @@ async function init() {
       <div class="stat-c"><div class="si">✅</div><div class="sv">${equipped.length}</div><div class="sl">مجهّز</div></div>
     </div>
 
-    <!-- tabs -->
     <div style="display:flex;gap:2px;background:var(--bg2);border-radius:var(--r2);padding:3px;margin-bottom:16px">
-      ${['my','shop','market'].map((t,i)=>`
+      ${['my','shop','market'].map((t,i) => `
         <div class="auth-tab${i===0?' active':''}" onclick="showTab('${t}',this)" style="flex:1">
-          ${t==='my'?'📦 مخزوني':t==='shop'?'🏪 متجر الأسلحة':'🔄 سوق الأسلحة'}
+          ${t==='my' ? '📦 مخزوني' : t==='shop' ? '🏪 متجر الأسلحة' : '🔄 سوق الأسلحة'}
         </div>`).join('')}
     </div>
 
@@ -69,89 +285,150 @@ async function init() {
     <div id="tab-my">
       ${inv && inv.length > 0 ? `
         <div class="g3">
-          ${inv.map(item => `
-            <div class="wpn-card${item.equipped?' equipped':''}">
-              <div class="wpn-icon">${item.weapons?.image}</div>
-              <div class="wpn-name">${item.weapons?.name}</div>
-              <div class="wpn-stats">
-                ${item.weapons?.attack_bonus ? `<span class="badge badge-r">⚔️ +${item.weapons.attack_bonus}</span>` : ''}
-                ${item.weapons?.defense_bonus ? `<span class="badge badge-b">🛡️ +${item.weapons.defense_bonus}</span>` : ''}
-                <span class="badge badge-gray">${WEAPON_TYPES[item.weapons?.type]?.name || item.weapons?.type}</span>
-              </div>
-              <div class="flex gap6">
-                <button class="btn ${item.equipped?'btn-gold':'btn-ghost'} btn-sm" style="flex:1" onclick="toggleEquip('${item.id}')">
-                  ${item.equipped ? '✅ مجهّز' : 'تجهيز'}
-                </button>
-                <button class="btn btn-outline btn-sm" onclick="sellItem('${item.id}','${item.weapons?.name}')">بيع</button>
-              </div>
-            </div>
-          `).join('')}
+          ${inv.map(item => {
+            const w = item.weapons || {};
+            return renderWeaponCard(w, {
+              equipped: item.equipped,
+              footer: `
+                <div class="flex gap6">
+                  <button class="btn ${item.equipped ? 'btn-gold' : 'btn-ghost'} btn-sm" style="flex:1"
+                    onclick="toggleEquip('${item.id}')">
+                    ${item.equipped ? '✅ مجهّز' : 'تجهيز'}
+                  </button>
+                  <button class="btn btn-outline btn-sm"
+                    onclick="sellItem('${item.id}','${(w.name||'').replace(/'/g,"\\'")}')">بيع</button>
+                </div>`
+            });
+          }).join('')}
         </div>
       ` : '<div class="empty"><div class="ei">🔫</div><p>مخزونك فارغ. اشتر أسلحة من المتجر!</p></div>'}
     </div>
 
     <!-- متجر الأسلحة -->
     <div id="tab-shop" style="display:none">
-      <div class="g3">
-        ${shopWpns.map(w => {
-          const canBuy = player.level >= w.level_required && player.cash >= w.price;
-          const locked = player.level < w.level_required;
-          return `
-            <div class="wpn-card${locked?' locked':''}">
-              <div class="wpn-icon">${w.image}</div>
-              <div class="wpn-name">${w.name}</div>
-              <div class="wpn-stats mb10">
-                ${w.attack_bonus ? `<span class="badge badge-r">⚔️ +${w.attack_bonus}</span>` : ''}
-                ${w.defense_bonus ? `<span class="badge badge-b">🛡️ +${w.defense_bonus}</span>` : ''}
-                <span class="badge badge-gray">${WEAPON_TYPES[w.type]?.name || w.type}</span>
-              </div>
-              <div style="font-size:1.1rem;font-weight:900;color:var(--gold);margin-bottom:8px">${$$(w.price)}</div>
-              ${locked ? `<div style="font-size:.75rem;color:var(--orange)">🔒 مستوى ${w.level_required}</div>` :
-                `<button class="btn btn-r btn-sm btn-full" onclick="buyWeapon('${w.id}','${w.name}',${w.price})"
-                  ${player.cash < w.price ? 'disabled' : ''}>
-                  ${player.cash < w.price ? 'رصيد غير كافٍ' : 'شراء'}
-                </button>`}
-            </div>`;
-        }).join('')}
-      </div>
+      <div id="shop-filters"></div>
+      <div class="g3" id="shop-grid"></div>
     </div>
 
     <!-- سوق الأسلحة -->
     <div id="tab-market" style="display:none">
-      ${mktItems && mktItems.length > 0 ? `
-        <div class="g3">
-          ${mktItems.map(m => `
-            <div class="wpn-card">
-              <div class="wpn-icon">${m.weapon_image}</div>
-              <div class="wpn-name">${m.weapon_name}</div>
-              <div class="wpn-stats mb8">
-                ${m.weapon_attack ? `<span class="badge badge-r">⚔️ +${m.weapon_attack}</span>` : ''}
-                ${m.weapon_defense ? `<span class="badge badge-b">🛡️ +${m.weapon_defense}</span>` : ''}
-              </div>
-              <div style="font-size:.72rem;color:var(--text2);margin-bottom:6px">البائع: ${m.seller_name}</div>
-              <div style="font-size:1.1rem;font-weight:900;color:var(--gold);margin-bottom:8px">${$$(m.price)}</div>
-              ${m.seller_id === player.id ?
-                `<button class="btn btn-outline btn-sm btn-full" onclick="cancelListing('${m.id}')">سحب العرض</button>` :
-                `<button class="btn btn-gold btn-sm btn-full" onclick="buyFromMarket('${m.id}','${m.weapon_name}',${m.price},${m.inventory_id})"
-                  ${player.cash < m.price ? 'disabled' : ''}>
-                  ${player.cash < m.price ? 'رصيد غير كافٍ' : 'شراء'}
-                </button>`
-              }
-            </div>
-          `).join('')}
-        </div>
-      ` : '<div class="empty"><div class="ei">🔄</div><p>السوق فارغ حالياً</p></div>'}
+      <div id="mkt-filters"></div>
+      <div id="mkt-grid"></div>
     </div>
   `;
+
+  renderShop();
+  renderMarket();
 }
 
+/* ---- متجر ---- */
+function renderShop() {
+  const filtered = activeShopCat === 'all'
+    ? allShopWpns
+    : allShopWpns.filter(w => (w.category || w.type) === activeShopCat);
+
+  document.getElementById('shop-filters').innerHTML =
+    buildCatFilters(allShopWpns, activeShopCat, 'filterShop');
+
+  document.getElementById('shop-grid').innerHTML = filtered.map(w => {
+    const locked = player.level < w.level_required;
+    return renderWeaponCard(w, {
+      locked,
+      footer: `
+        <div style="font-size:1.05rem;font-weight:900;color:var(--gold);margin-bottom:4px">${$$(w.price)}</div>
+        ${locked
+          ? `<div style="font-size:.72rem;color:var(--orange)">🔒 مستوى ${w.level_required}</div>`
+          : `<button class="btn btn-r btn-sm btn-full"
+               onclick="buyWeapon('${w.id}','${(w.name||'').replace(/'/g,"\\'")}',${w.price})"
+               ${player.cash < w.price ? 'disabled' : ''}>
+               ${player.cash < w.price ? 'رصيد غير كافٍ' : 'شراء'}
+             </button>`}
+      `
+    });
+  }).join('');
+}
+
+function filterShop(cat, el) {
+  activeShopCat = cat;
+  document.querySelectorAll('#shop-filters .cat-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderShop();
+}
+
+/* ---- سوق ---- */
+function renderMarket() {
+  const filtered = activeMktCat === 'all'
+    ? allMktItems
+    : allMktItems.filter(m => {
+        const wpnCat = m.weapon_category
+          || (allShopWpns.find(w => w.id === m.weapon_id) || {}).category
+          || 'rifle';
+        return wpnCat === activeMktCat;
+      });
+
+  // بناء قائمة للفلاتر
+  const mktForFilter = allMktItems.map(m => ({
+    category: m.weapon_category
+      || (allShopWpns.find(w => w.id === m.weapon_id) || {}).category
+      || 'rifle'
+  }));
+  document.getElementById('mkt-filters').innerHTML =
+    buildCatFilters(mktForFilter, activeMktCat, 'filterMkt');
+
+  if (!filtered.length) {
+    document.getElementById('mkt-grid').innerHTML =
+      '<div class="empty"><div class="ei">🔄</div><p>لا توجد عروض في هذه الفئة</p></div>';
+    return;
+  }
+
+  document.getElementById('mkt-grid').innerHTML = `
+    <div class="g3">
+      ${filtered.map(m => {
+        const shopW = allShopWpns.find(w => w.id === m.weapon_id) || {};
+        const wData = {
+          name:          m.weapon_name,
+          type:          shopW.type || 'rifle',
+          category:      m.weapon_category || shopW.category,
+          attack_bonus:  m.weapon_attack  || shopW.attack_bonus,
+          defense_bonus: m.weapon_defense || shopW.defense_bonus,
+          description:   shopW.description,
+          accuracy:      shopW.accuracy,
+          range_type:    shopW.range_type
+        };
+        return renderWeaponCard(wData, {
+          footer: `
+            <div style="font-size:.7rem;color:var(--text2);margin-bottom:4px">البائع: ${m.seller_name}</div>
+            <div style="font-size:1.05rem;font-weight:900;color:var(--gold);margin-bottom:4px">${$$(m.price)}</div>
+            ${m.seller_id === player.id
+              ? `<button class="btn btn-outline btn-sm btn-full"
+                   onclick="cancelListing('${m.id}')">سحب العرض</button>`
+              : `<button class="btn btn-gold btn-sm btn-full"
+                   onclick="buyFromMarket('${m.id}','${(m.weapon_name||'').replace(/'/g,"\\'")}',${m.price},${m.inventory_id})"
+                   ${player.cash < m.price ? 'disabled' : ''}>
+                   ${player.cash < m.price ? 'رصيد غير كافٍ' : 'شراء'}
+                 </button>`}
+          `
+        });
+      }).join('')}
+    </div>`;
+}
+
+function filterMkt(cat, el) {
+  activeMktCat = cat;
+  document.querySelectorAll('#mkt-filters .cat-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderMarket();
+}
+
+/* ---- تبويبات ---- */
 function showTab(name, el) {
-  document.querySelectorAll('#tab-my,#tab-shop,#tab-market').forEach(t => t.style.display='none');
+  document.querySelectorAll('#tab-my,#tab-shop,#tab-market').forEach(t => t.style.display = 'none');
   document.getElementById(`tab-${name}`).style.display = '';
   document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
 }
 
+/* ---- عمليات ---- */
 async function toggleEquip(invId) {
   const { data, error } = await supabase.rpc('toggle_equip', { p_inv_id: invId });
   toast(data?.message || error?.message, data?.success ? 's' : 'e');
@@ -169,7 +446,10 @@ async function buyWeapon(weaponId, name, price) {
 
 async function sellItem(invId, name) {
   openModal(`
-    <div class="modal-hdr"><span class="modal-title">💰 بيع ${name}</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-hdr">
+      <span class="modal-title">💰 بيع ${name}</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
     <div class="fg">
       <label class="fl">اختر طريقة البيع</label>
       <select class="fc" id="sell-type">
@@ -203,10 +483,16 @@ async function confirmSell(invId) {
     const price = parseInt(document.getElementById('sell-price').value);
     if (!price || price <= 0) { toast('أدخل سعراً صحيحاً', 'w'); return; }
     await supabase.from('market').insert({
-      seller_id: player.id, inventory_id: invId, weapon_id: invData.weapon_id,
-      price, seller_name: player.username, weapon_name: invData.weapons.name,
-      weapon_image: invData.weapons.image, weapon_attack: invData.weapons.attack_bonus,
-      weapon_defense: invData.weapons.defense_bonus
+      seller_id:       player.id,
+      inventory_id:    invId,
+      weapon_id:       invData.weapon_id,
+      price,
+      seller_name:     player.username,
+      weapon_name:     invData.weapons.name,
+      weapon_image:    invData.weapons.image,
+      weapon_attack:   invData.weapons.attack_bonus,
+      weapon_defense:  invData.weapons.defense_bonus,
+      weapon_category: invData.weapons.category
     });
     await supabase.from('inventory').update({ for_sale: true, sale_price: price }).eq('id', invId);
     closeModal();
