@@ -328,3 +328,103 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .dmg-float{position:fixed;font-size:1.2rem;font-weight:900;pointer-events:none;z-index:9999;animation:damageFloat 1.2s ease forwards}
 .dmg-float.pos{color:var(--green)}
 .dmg-float.neg{color:var(--red)}
+
+/* ── TICKER ──────────────────────────────────── */
+.ticker-wrap{background:rgba(220,20,60,.07);border:1px solid rgba(220,20,60,.2);border-radius:var(--r2);padding:8px 14px;margin-bottom:18px;display:flex;align-items:center;gap:10px;overflow:hidden}
+.ticker-label{font-size:.65rem;font-weight:900;color:var(--red);white-space:nowrap;padding:2px 8px;background:rgba(220,20,60,.18);border-radius:4px;flex-shrink:0;text-transform:uppercase;letter-spacing:.5px}
+.ticker-track{overflow:hidden;flex:1;mask-image:linear-gradient(to left,transparent,black 8%,black 92%,transparent)}
+.ticker-inner{display:flex;gap:40px;white-space:nowrap;animation:tickerScroll 40s linear infinite}
+.ticker-inner:hover{animation-play-state:paused}
+.ticker-item{font-size:.78rem;color:var(--text2)}
+.ticker-item .hi{color:var(--red);font-weight:700}
+@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── DAILY BONUS ─────────────────────────────── */
+.daily-card{background:linear-gradient(135deg,rgba(255,215,0,.07),rgba(255,100,0,.05));border:1px solid rgba(255,215,0,.25);border-radius:var(--r);padding:18px;margin-bottom:18px;position:relative;overflow:hidden;animation:fadeUp .4s ease}
+.daily-card::after{content:'🎁';position:absolute;left:-4px;top:50%;transform:translateY(-50%);font-size:5rem;opacity:.06;pointer-events:none}
+.daily-btn{background:linear-gradient(135deg,#7a5c00,var(--gold));color:#0a0800;font-weight:900;font-size:.95rem;padding:12px;border-radius:var(--r2);border:none;cursor:pointer;width:100%;font-family:'Tajawal',sans-serif;transition:all .2s;box-shadow:0 4px 18px var(--gold-glow);animation:pulse 2s infinite}
+.daily-btn:hover{transform:translateY(-2px);box-shadow:0 6px 28px var(--gold-glow);animation:none}
+.daily-btn:disabled{opacity:.4;cursor:not-allowed;animation:none}
+
+/* ── QUICK ACTION GRID ───────────────────────── */
+.qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px}
+.qa-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 10px;text-align:center;text-decoration:none;color:var(--text);transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;overflow:hidden}
+.qa-card::before{content:'';position:absolute;inset:0;opacity:0;transition:.2s;border-radius:var(--r)}
+.qa-card:hover{transform:translateY(-3px);box-shadow:0 6px 22px rgba(0,0,0,.3)}
+.qa-card:hover::before{opacity:1}
+.qa-card .qi{font-size:1.5rem;line-height:1}
+.qa-card .ql{font-size:.7rem;font-weight:700;color:var(--text2)}
+.qa-r::before{background:radial-gradient(circle,rgba(220,20,60,.15),transparent)}.qa-r:hover{border-color:var(--red)}
+.qa-b::before{background:radial-gradient(circle,rgba(68,138,255,.15),transparent)}.qa-b:hover{border-color:var(--blue)}
+.qa-g::before{background:radial-gradient(circle,rgba(0,230,118,.15),transparent)}.qa-g:hover{border-color:var(--green)}
+.qa-gold::before{background:radial-gradient(circle,rgba(255,215,0,.15),transparent)}.qa-gold:hover{border-color:var(--gold)}
+.qa-p::before{background:radial-gradient(circle,rgba(170,68,255,.15),transparent)}.qa-p:hover{border-color:var(--purple)}
+.qa-o::before{background:radial-gradient(circle,rgba(255,152,0,.15),transparent)}.qa-o:hover{border-color:var(--orange)}
+
+/* ── ACTIVITY FEED ───────────────────────────── */
+.feed-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border-radius:var(--r2);border-right:3px solid var(--border);animation:slideR .3s ease;transition:border-color .2s}
+.feed-item:hover{border-right-color:var(--red);background:rgba(220,20,60,.04)}
+.feed-icon{font-size:1.2rem;flex-shrink:0;width:28px;text-align:center}
+.feed-text{flex:1;font-size:.8rem;line-height:1.4}
+.feed-time{font-size:.68rem;color:var(--muted);flex-shrink:0}
+.feed-money.pos{color:var(--green);font-weight:700;font-size:.78rem}
+.feed-money.neg{color:var(--red);font-weight:700;font-size:.78rem}
+
+/* ── LIVE DOT ────────────────────────────────── */
+.live-dot{display:inline-block;width:7px;height:7px;background:var(--green);border-radius:50%;animation:livePulse 1.5s ease infinite;box-shadow:0 0 5px var(--green);vertical-align:middle;margin-left:4px}
+@keyframes livePulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.6}}
+
+/* ── PHARMACY ────────────────────────────────── */
+.pharma-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.pharma-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center;transition:all .25s;animation:fadeUp .4s ease;display:flex;flex-direction:column;gap:6px;align-items:center}
+.pharma-card:hover{border-color:rgba(0,230,118,.35);box-shadow:0 4px 18px rgba(0,230,118,.1);transform:translateY(-2px)}
+.pharma-icon{font-size:2.4rem;margin-bottom:2px}
+.pharma-name{font-size:.88rem;font-weight:800}
+.pharma-desc{font-size:.73rem;color:var(--text2);line-height:1.4}
+.pharma-effect{font-size:.75rem;font-weight:700;color:var(--green)}
+.pharma-price{font-size:.9rem;font-weight:900;color:var(--gold)}
+.pharma-card .btn{margin-top:4px;width:100%}
+
+/* ── CASINO ──────────────────────────────────── */
+.slot-machine{background:linear-gradient(160deg,var(--card2),var(--card));border:2px solid rgba(255,215,0,.28);border-radius:var(--r);padding:24px;text-align:center;box-shadow:0 0 40px rgba(255,215,0,.06),inset 0 0 40px rgba(0,0,0,.15)}
+.slot-display{display:flex;justify-content:center;gap:10px;margin:18px 0}
+.slot-reel{width:82px;height:96px;background:var(--bg);border:2px solid rgba(255,215,0,.35);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:3rem;transition:border-color .3s;position:relative;box-shadow:inset 0 4px 14px rgba(0,0,0,.5)}
+.slot-reel.spinning{animation:reelSpin .12s linear infinite}
+.slot-reel.win{border-color:var(--gold);box-shadow:0 0 18px var(--gold-glow),inset 0 4px 14px rgba(0,0,0,.5);animation:winBounce .5s ease}
+.slot-reel.lose{opacity:.5}
+@keyframes reelSpin{0%{transform:scaleY(1) rotateX(0)}50%{transform:scaleY(.85) rotateX(10deg)}100%{transform:scaleY(1) rotateX(0)}}
+@keyframes winBounce{0%,100%{transform:scale(1)}40%{transform:scale(1.12)}70%{transform:scale(.96)}}
+.slot-divider{display:flex;align-items:center;gap:6px;color:rgba(255,215,0,.4);font-size:.7rem;margin:2px 0}
+.slot-divider::before,.slot-divider::after{content:'';flex:1;height:1px;background:rgba(255,215,0,.2)}
+
+.bet-row{display:flex;gap:8px;align-items:center;margin:16px 0}
+.bet-row input{flex:1;padding:10px 14px;background:var(--bg2);border:1px solid rgba(255,215,0,.25);border-radius:var(--r2);color:var(--text);font-family:'Tajawal',sans-serif;font-size:.95rem;text-align:center;outline:none}
+.bet-row input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-glow)}
+.bet-chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
+.chip{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .15s;color:var(--text2)}
+.chip:hover{border-color:var(--gold);color:var(--gold);background:rgba(255,215,0,.07)}
+
+.pay-table{background:var(--bg2);border-radius:var(--r2);padding:12px;margin-top:14px;font-size:.75rem}
+.pay-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);color:var(--text2)}
+.pay-row:last-child{border:none}
+.pay-combo{font-weight:700;color:var(--text)}
+.pay-mult{color:var(--gold);font-weight:900}
+
+.dice-section{margin-top:24px}
+.dice-display{font-size:5rem;margin:14px 0;display:block;text-align:center;transition:transform .2s}
+.dice-display.rolling{animation:diceRoll .15s linear infinite}
+@keyframes diceRoll{0%{transform:rotate(-10deg) scale(.9)}50%{transform:rotate(10deg) scale(1.05)}100%{transform:rotate(-10deg) scale(.9)}}
+.dice-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.dice-choice{padding:12px;background:var(--bg2);border:2px solid var(--border);border-radius:var(--r2);cursor:pointer;font-size:.9rem;font-weight:700;transition:all .2s;text-align:center}
+.dice-choice.sel{border-color:var(--red);background:rgba(220,20,60,.1);color:var(--red)}
+.dice-choice:hover:not(.sel){border-color:var(--text2);color:var(--text)}
+
+/* ── RESULT BANNER ───────────────────────────── */
+.result-banner{padding:16px;border-radius:var(--r2);text-align:center;margin-top:14px;font-weight:700;animation:popIn .4s ease;font-size:1rem}
+.result-banner.win{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3);color:var(--green)}
+.result-banner.lose{background:rgba(220,20,60,.08);border:1px solid rgba(220,20,60,.25);color:var(--red)}
+
+@media(max-width:768px){
+  .pharma-grid{grid-template-columns:repeat(2,1fr)}
+  .qa-grid{grid-template-columns:repeat(4,1fr)}
+}

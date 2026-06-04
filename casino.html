@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الكازينو – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* ── Warning Banner ── */
+.warn-banner{
+  background:rgba(255,152,0,.09);border:1px solid rgba(255,152,0,.32);
+  border-radius:var(--r);padding:12px 18px;margin-bottom:20px;
+  display:flex;align-items:center;gap:10px;font-size:.82rem;color:var(--orange);
+  animation:fadeUp .4s ease;
+}
+
+/* ── Cash Display ── */
+.casino-cash{
+  background:var(--card);border:1px solid rgba(255,215,0,.25);border-radius:var(--r);
+  padding:14px 20px;margin-bottom:22px;display:flex;align-items:center;gap:12px;
+  animation:fadeUp .4s ease;
+}
+.casino-cash .cc-icon{font-size:1.8rem}
+.casino-cash .cc-lbl{font-size:.75rem;color:var(--text2);font-weight:600}
+.casino-cash .cc-val{font-size:1.4rem;font-weight:900;color:var(--gold);text-shadow:0 0 10px var(--gold-glow)}
+
+/* ── Section Cards ── */
+.casino-section{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:22px;margin-bottom:22px;animation:fadeUp .4s ease;
+}
+.casino-section-title{
+  font-size:1.1rem;font-weight:900;color:var(--text);
+  margin-bottom:20px;display:flex;align-items:center;gap:8px;
+  padding-bottom:12px;border-bottom:1px solid var(--border);
+}
+
+/* ── Slot Machine ── */
+.reels{
+  display:flex;justify-content:center;align-items:center;gap:14px;
+  margin-bottom:22px;
+}
+.reel{
+  width:88px;height:88px;background:var(--bg2);border:2px solid var(--border);
+  border-radius:var(--r);display:flex;align-items:center;justify-content:center;
+  font-size:3rem;line-height:1;transition:border-color .3s,box-shadow .3s;
+  position:relative;overflow:hidden;
+}
+.reel.spinning{
+  border-color:var(--gold);box-shadow:0 0 14px var(--gold-glow);
+  animation:pulse .2s ease infinite;
+}
+.reel.winner{
+  border-color:var(--gold);box-shadow:0 0 24px var(--gold-glow);
+  animation:glow 1s ease-in-out infinite;
+}
+
+.bet-row{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;
+}
+.bet-chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip-btn{
+  background:var(--bg2);border:1px solid var(--border);border-radius:20px;
+  padding:4px 11px;font-size:.78rem;font-weight:700;cursor:pointer;
+  color:var(--text2);font-family:'Tajawal',sans-serif;transition:all .18s;
+}
+.chip-btn:hover{border-color:var(--gold);color:var(--gold)}
+
+.spin-btn{
+  width:100%;padding:14px;font-size:1.1rem;font-weight:900;
+  background:linear-gradient(135deg,#8b5e00,var(--gold));color:#0a0800;
+  border:none;border-radius:var(--r2);cursor:pointer;font-family:'Tajawal',sans-serif;
+  box-shadow:0 4px 18px var(--gold-glow);transition:all .2s;position:relative;overflow:hidden;
+  margin-bottom:18px;
+}
+.spin-btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0);transition:.18s}
+.spin-btn:hover::after{background:rgba(255,255,255,.12)}
+.spin-btn:active{transform:scale(.97)}
+.spin-btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
+
+/* ── Payout Table ── */
+.payout-table{
+  background:var(--bg2);border-radius:var(--r2);overflow:hidden;
+  border:1px solid var(--border);
+}
+.payout-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 14px;border-bottom:1px solid var(--border);font-size:.82rem;
+}
+.payout-row:last-child{border-bottom:none}
+.payout-combo{font-size:1rem;letter-spacing:2px}
+.payout-mult{font-weight:900;color:var(--gold)}
+
+/* ── Slot Result ── */
+.slot-result{
+  text-align:center;padding:12px;border-radius:var(--r2);margin-bottom:14px;
+  font-size:.95rem;font-weight:700;display:none;animation:popIn .4s ease;
+}
+.slot-result.win{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3);color:var(--green)}
+.slot-result.lose{background:rgba(220,20,60,.1);border:1px solid rgba(220,20,60,.3);color:var(--red)}
+
+/* ── Dice ── */
+.dice-display{
+  text-align:center;font-size:5rem;line-height:1;margin:16px 0;
+  transition:transform .2s;
+}
+.dice-display.rolling{animation:spin .15s linear infinite}
+
+.dice-choices{display:flex;gap:10px;margin-bottom:14px}
+.dice-choice{
+  flex:1;padding:12px;border-radius:var(--r2);border:2px solid var(--border);
+  background:var(--bg2);cursor:pointer;text-align:center;font-weight:700;
+  font-size:.9rem;color:var(--text2);font-family:'Tajawal',sans-serif;
+  transition:all .2s;
+}
+.dice-choice:hover{border-color:var(--blue);color:var(--blue)}
+.dice-choice.selected{
+  background:rgba(68,138,255,.12);border-color:var(--blue);color:var(--blue);
+  box-shadow:0 0 10px var(--blue-glow);
+}
+
+.dice-result{
+  text-align:center;padding:12px;border-radius:var(--r2);margin-bottom:14px;
+  font-size:.95rem;font-weight:700;display:none;animation:popIn .4s ease;
+}
+.dice-result.win{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3);color:var(--green)}
+.dice-result.lose{background:rgba(220,20,60,.1);border:1px solid rgba(220,20,60,.3);color:var(--red)}
+
+/* ── Jackpot Overlay ── */
+@keyframes jackpotPop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+@keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(120px) rotate(720deg);opacity:0}}
+
+.jackpot-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;animation:fadeIn .3s ease;
+}
+.jackpot-box{
+  background:var(--card);border:2px solid var(--gold);border-radius:var(--r);
+  padding:36px 48px;text-align:center;animation:jackpotPop .5s ease;
+  box-shadow:0 0 50px var(--gold-glow),0 0 100px rgba(255,215,0,.1);
+}
+.jackpot-emoji{font-size:4rem;animation:pulse 1s ease infinite;margin-bottom:10px}
+.jackpot-title{font-size:1.8rem;font-weight:900;color:var(--gold);margin-bottom:6px;text-shadow:0 0 20px var(--gold-glow)}
+.jackpot-amount{font-size:1.3rem;font-weight:900;color:var(--green)}
+.confetti-piece{
+  position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:2001;
+  animation:confettiFall 1.4s ease forwards;
+}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+
+// ── Constants ──────────────────────────────────────────
+const SLOT_SYMBOLS = ['🍋','🍊','🍇','⭐','💎','🎰','7️⃣'];
+const DICE_FACES   = { 1:'⚀', 2:'⚁', 3:'⚂', 4:'⚃', 5:'⚄', 6:'⚅' };
+
+// ── State ──────────────────────────────────────────────
+let slotBet   = 500;
+let diceBet   = 500;
+let diceChoice = 'high'; // 'high' | 'low'
+let slotSpinning = false;
+let diceRolling  = false;
+
+// ── Init ───────────────────────────────────────────────
+async function init() {
+  player = await buildNav('casino');
+  if (!player) return;
+  renderPage();
+}
+
+function renderPage() {
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🎰</div>
+      <div>
+        <div class="page-title">الـ<em>كازينو</em></div>
+        <div class="page-sub">العب بذكاء – الحظ يبتسم للجريء</div>
+      </div>
+    </div>
+
+    <div class="warn-banner">
+      ⚠️ <span>المقامرة مسلية لكنها خطرة – العب بمسؤولية ولا تراهن أكثر مما تستطيع خسارته</span>
+    </div>
+
+    <div class="casino-cash">
+      <div class="cc-icon">💵</div>
+      <div>
+        <div class="cc-lbl">رصيدك الحالي</div>
+        <div class="cc-val" id="cash-display">${$$(player.cash)}</div>
+      </div>
+    </div>
+
+    <!-- ═══ SLOT MACHINE ═══════════════════════════════ -->
+    <div class="casino-section">
+      <div class="casino-section-title">🎰 ماكينة القمار</div>
+
+      <!-- Reels -->
+      <div class="reels">
+        <div class="reel" id="reel-0">🍋</div>
+        <div class="reel" id="reel-1">🍊</div>
+        <div class="reel" id="reel-2">🍇</div>
+      </div>
+
+      <!-- Slot Result -->
+      <div class="slot-result" id="slot-result"></div>
+
+      <!-- Bet Controls -->
+      <div style="margin-bottom:12px">
+        <label class="fl">الرهان</label>
+        <div class="bet-row">
+          <input class="fc" type="number" id="slot-bet" min="100" step="100"
+            value="${slotBet}" style="width:140px"
+            oninput="slotBet = Math.max(100, parseInt(this.value)||100)">
+          <div class="bet-chips">
+            <button class="chip-btn" onclick="addSlotBet(500)">+500</button>
+            <button class="chip-btn" onclick="addSlotBet(1000)">+1K</button>
+            <button class="chip-btn" onclick="addSlotBet(5000)">+5K</button>
+            <button class="chip-btn" onclick="addSlotBet(10000)">+10K</button>
+            <button class="chip-btn" onclick="setSlotBetMax()">ماكس</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="spin-btn" id="spin-btn" onclick="spinSlots()">🎰 أدِّر البكرات!</button>
+
+      <!-- Payout Table -->
+      <div style="font-size:.78rem;color:var(--text2);font-weight:700;margin-bottom:8px">جدول المكافآت</div>
+      <div class="payout-table">
+        <div class="payout-row">
+          <span class="payout-combo">7️⃣7️⃣7️⃣</span>
+          <span class="payout-mult">× 50</span>
+        </div>
+        <div class="payout-row">
+          <span class="payout-combo">💎💎💎</span>
+          <span class="payout-mult">× 20</span>
+        </div>
+        <div class="payout-row">
+          <span class="payout-combo">🎰🎰🎰</span>
+          <span class="payout-mult">× 10</span>
+        </div>
+        <div class="payout-row">
+          <span class="payout-combo">X X X</span>
+          <span class="payout-mult">× 5 (ثلاثة متشابهة)</span>
+        </div>
+        <div class="payout-row">
+          <span class="payout-combo">X X –</span>
+          <span class="payout-mult">× 2 (اثنان متشابهان)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ DICE ════════════════════════════════════════ -->
+    <div class="casino-section">
+      <div class="casino-section-title">🎲 لعبة النرد</div>
+
+      <div class="dice-display" id="dice-display">⚄</div>
+
+      <div class="dice-result" id="dice-result"></div>
+
+      <!-- Choice Buttons -->
+      <div class="dice-choices" id="dice-choices">
+        <button class="dice-choice" id="choice-low"  onclick="selectDice('low')">منخفض 1–3</button>
+        <button class="dice-choice selected" id="choice-high" onclick="selectDice('high')">مرتفع 4–6</button>
+      </div>
+
+      <!-- Bet -->
+      <div style="margin-bottom:14px">
+        <label class="fl">الرهان</label>
+        <div class="bet-row">
+          <input class="fc" type="number" id="dice-bet" min="100" step="100"
+            value="${diceBet}" style="width:140px"
+            oninput="diceBet = Math.max(100, parseInt(this.value)||100)">
+          <div class="bet-chips">
+            <button class="chip-btn" onclick="addDiceBet(500)">+500</button>
+            <button class="chip-btn" onclick="addDiceBet(1000)">+1K</button>
+            <button class="chip-btn" onclick="addDiceBet(5000)">+5K</button>
+            <button class="chip-btn" onclick="setDiceBetMax()">ماكس</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:var(--bg2);border-radius:var(--r2);padding:10px 14px;font-size:.8rem;color:var(--text2);margin-bottom:14px">
+        ربح عند الفوز: <strong style="color:var(--green)">× 1.9</strong> من الرهان
+      </div>
+
+      <button class="btn btn-b btn-full" id="roll-btn" style="padding:14px;font-size:1rem;font-weight:900" onclick="rollDice()">🎲 ارمِ النرد</button>
+    </div>
+  `;
+
+  // restore dice selection highlight
+  document.getElementById(`choice-${diceChoice}`)?.classList.add('selected');
+  document.getElementById(`choice-${diceChoice === 'high' ? 'low' : 'high'}`)?.classList.remove('selected');
+}
+
+// ── Slot Helpers ───────────────────────────────────────
+function addSlotBet(amount) {
+  slotBet = Math.min(player.cash, slotBet + amount);
+  const input = document.getElementById('slot-bet');
+  if (input) input.value = slotBet;
+}
+function setSlotBetMax() {
+  slotBet = player.cash;
+  const input = document.getElementById('slot-bet');
+  if (input) input.value = slotBet;
+}
+
+// ── Dice Helpers ───────────────────────────────────────
+function addDiceBet(amount) {
+  diceBet = Math.min(player.cash, diceBet + amount);
+  const input = document.getElementById('dice-bet');
+  if (input) input.value = diceBet;
+}
+function setDiceBetMax() {
+  diceBet = player.cash;
+  const input = document.getElementById('dice-bet');
+  if (input) input.value = diceBet;
+}
+function selectDice(choice) {
+  diceChoice = choice;
+  document.querySelectorAll('.dice-choice').forEach(b => b.classList.remove('selected'));
+  document.getElementById(`choice-${choice}`)?.classList.add('selected');
+}
+
+// ── Spin Slots ─────────────────────────────────────────
+async function spinSlots() {
+  if (slotSpinning) return;
+
+  const betVal = parseInt(document.getElementById('slot-bet')?.value) || slotBet;
+  slotBet = betVal;
+
+  if (betVal < 100) { toast('الرهان الأدنى 100$', 'w'); return; }
+  if (betVal > player.cash) { toast('رصيد غير كافٍ', 'e'); return; }
+
+  slotSpinning = true;
+  const spinBtn = document.getElementById('spin-btn');
+  spinBtn.disabled = true;
+  spinBtn.textContent = '⏳ جاري اللف...';
+
+  // Hide previous result
+  const resultEl = document.getElementById('slot-result');
+  resultEl.style.display = 'none';
+
+  // Animate reels spinning
+  const reels = [0,1,2].map(i => document.getElementById(`reel-${i}`));
+  reels.forEach(r => r.classList.add('spinning'));
+  const spinInterval = setInterval(() => {
+    reels.forEach(r => {
+      r.textContent = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+    });
+  }, 80);
+
+  // Call RPC
+  const { data, error } = await supabase.rpc('play_slots', { p_bet: betVal });
+
+  // Stop spin after at least 1.2s
+  await new Promise(r => setTimeout(r, 1200));
+  clearInterval(spinInterval);
+
+  if (error || !data?.success) {
+    reels.forEach(r => r.classList.remove('spinning'));
+    sfxFail();
+    toast(data?.message || error?.message || 'حدث خطأ', 'e');
+    slotSpinning = false;
+    spinBtn.disabled = false;
+    spinBtn.textContent = '🎰 أدِّر البكرات!';
+    return;
+  }
+
+  const r1 = data.r1 ?? SLOT_SYMBOLS[0];
+  const r2 = data.r2 ?? SLOT_SYMBOLS[1];
+  const r3 = data.r3 ?? SLOT_SYMBOLS[2];
+  const win = data.win || false;
+  const multiplier = data.multiplier || 0;
+  const winAmount  = data.win_amount || 0;
+
+  // Reveal reels one by one
+  await revealReel(reels[0], r1, 0);
+  await revealReel(reels[1], r2, 300);
+  await revealReel(reels[2], r3, 300);
+
+  // Show result
+  if (win) {
+    reels.forEach(r => r.classList.add('winner'));
+    if (multiplier >= 10) {
+      showJackpot(winAmount);
+    } else {
+      sfxWin();
+    }
+    resultEl.className = 'slot-result win';
+    resultEl.innerHTML = `🏆 فزت! +${$$(winAmount)} (×${multiplier})`;
+    resultEl.style.display = 'block';
+    toast(`🏆 فزت بـ ${$$(winAmount)}!`, 's', 4000);
+  } else {
+    sfxLose();
+    resultEl.className = 'slot-result lose';
+    resultEl.innerHTML = `💸 خسرت ${$$(betVal)} – حظاً أوفر!`;
+    resultEl.style.display = 'block';
+    toast(`💸 خسرت ${$$(betVal)}`, 'e', 3000);
+  }
+
+  // Update cash display
+  if (data.new_cash !== undefined) {
+    player.cash = data.new_cash;
+    const cd = document.getElementById('cash-display');
+    if (cd) cd.textContent = $$(player.cash);
+  } else {
+    // re-fetch player cash
+    const { data: pd } = await supabase.from('players').select('cash').eq('id', player.id).single();
+    if (pd) { player.cash = pd.cash; const cd = document.getElementById('cash-display'); if (cd) cd.textContent = $$(player.cash); }
+  }
+
+  slotSpinning = false;
+  spinBtn.disabled = false;
+  spinBtn.textContent = '🎰 أدِّر البكرات!';
+}
+
+function revealReel(el, symbol, delay) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      el.classList.remove('spinning');
+      el.textContent = symbol;
+      playTone(440, 'sine', 0.1, 0.2);
+      resolve();
+    }, delay);
+  });
+}
+
+// ── Roll Dice ──────────────────────────────────────────
+async function rollDice() {
+  if (diceRolling) return;
+
+  const betVal = parseInt(document.getElementById('dice-bet')?.value) || diceBet;
+  diceBet = betVal;
+
+  if (betVal < 100) { toast('الرهان الأدنى 100$', 'w'); return; }
+  if (betVal > player.cash) { toast('رصيد غير كافٍ', 'e'); return; }
+
+  diceRolling = true;
+  const rollBtn = document.getElementById('roll-btn');
+  rollBtn.disabled = true;
+  rollBtn.textContent = '⏳ جاري الرمي...';
+
+  const diceEl  = document.getElementById('dice-display');
+  const resultEl = document.getElementById('dice-result');
+  resultEl.style.display = 'none';
+  diceEl.classList.add('rolling');
+
+  const rollInterval = setInterval(() => {
+    const face = Math.floor(Math.random() * 6) + 1;
+    diceEl.textContent = DICE_FACES[face];
+  }, 100);
+
+  const { data, error } = await supabase.rpc('play_dice', { p_bet: betVal, p_choice: diceChoice });
+
+  await new Promise(r => setTimeout(r, 900));
+  clearInterval(rollInterval);
+  diceEl.classList.remove('rolling');
+
+  if (error || !data?.success) {
+    sfxFail();
+    toast(data?.message || error?.message || 'حدث خطأ', 'e');
+    diceRolling = false;
+    rollBtn.disabled = false;
+    rollBtn.textContent = '🎲 ارمِ النرد';
+    return;
+  }
+
+  const roll      = data.roll ?? 1;
+  const win       = data.win || false;
+  const winAmount = data.win_amount || 0;
+
+  diceEl.textContent = DICE_FACES[roll] || '⚄';
+
+  if (win) {
+    sfxWin();
+    resultEl.className = 'dice-result win';
+    resultEl.innerHTML = `🎉 فزت! رقم ${roll} – ربحت ${$$(winAmount)}`;
+    resultEl.style.display = 'block';
+    toast(`🎉 فزت بـ ${$$(winAmount)}!`, 's', 4000);
+  } else {
+    sfxLose();
+    resultEl.className = 'dice-result lose';
+    resultEl.innerHTML = `💸 خسرت! رقم ${roll} – خسرت ${$$(betVal)}`;
+    resultEl.style.display = 'block';
+    toast(`💸 خسرت ${$$(betVal)}`, 'e', 3000);
+  }
+
+  // Update cash
+  if (data.new_cash !== undefined) {
+    player.cash = data.new_cash;
+    const cd = document.getElementById('cash-display');
+    if (cd) cd.textContent = $$(player.cash);
+  } else {
+    const { data: pd } = await supabase.from('players').select('cash').eq('id', player.id).single();
+    if (pd) { player.cash = pd.cash; const cd = document.getElementById('cash-display'); if (cd) cd.textContent = $$(player.cash); }
+  }
+
+  diceRolling = false;
+  rollBtn.disabled = false;
+  rollBtn.textContent = '🎲 ارمِ النرد';
+}
+
+// ── Jackpot Animation ──────────────────────────────────
+function showJackpot(amount) {
+  sfxWin();
+  sfxLevelUp();
+
+  // Confetti
+  const colors = ['#ffd700','#ff4444','#00e676','#448aff','#aa44ff','#ff9800'];
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    p.style.cssText = `
+      left:${Math.random()*100}vw;
+      top:${Math.random()*30}vh;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      animation-delay:${Math.random()*0.6}s;
+      animation-duration:${1.2 + Math.random()*0.8}s;
+    `;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 2500);
+  }
+
+  // Overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'jackpot-overlay';
+  overlay.innerHTML = `
+    <div class="jackpot-box">
+      <div class="jackpot-emoji">🏆</div>
+      <div class="jackpot-title">جاكبوت!</div>
+      <div class="jackpot-amount">+${$$(amount)}</div>
+    </div>
+    <button class="btn btn-gold" onclick="this.parentElement.remove()">رائع! واصل</button>
+  `;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.remove(), 5000);
+}
+
+init();
+</script>
+</body>
+</html>

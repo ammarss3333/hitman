@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>السجن – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+.jail-hero{background:linear-gradient(135deg,rgba(255,152,0,.08),rgba(220,20,60,.05));border:1px solid rgba(255,152,0,.3);border-radius:var(--r);padding:28px;text-align:center;margin-bottom:20px;position:relative;overflow:hidden}
+.jail-hero::before{content:'⛓️';position:absolute;font-size:8rem;opacity:.05;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+.jail-title{font-size:1.8rem;font-weight:900;color:var(--orange);margin-bottom:6px}
+.jail-timer{font-size:2.5rem;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums;text-shadow:0 0 20px var(--red-glow)}
+.bars{display:flex;justify-content:center;gap:8px;margin:14px 0}
+.bar{width:6px;height:50px;background:rgba(255,152,0,.5);border-radius:3px;animation:barShake 3s ease-in-out infinite}
+.bar:nth-child(2){animation-delay:.15s}.bar:nth-child(3){animation-delay:.3s}.bar:nth-child(4){animation-delay:.45s}.bar:nth-child(5){animation-delay:.6s}
+@keyframes barShake{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.85)}}
+
+.rule-card{background:var(--bg2);border-radius:var(--r2);padding:14px 16px;display:flex;align-items:flex-start;gap:12px;border:1px solid var(--border)}
+.rule-num{font-size:1.1rem;font-weight:900;color:var(--red);flex-shrink:0;width:24px;text-align:center}
+.rule-text{font-size:.85rem;line-height:1.55;color:var(--text2)}
+.rule-text strong{color:var(--text)}
+
+.inmate-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border);transition:all .2s;cursor:pointer}
+.inmate-row:hover{border-color:var(--border-r);background:rgba(220,20,60,.04)}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+let _timerInterval = null;
+
+async function init() {
+  player = await buildNav('jail');
+  if (!player) return;
+
+  // تحميل السجناء الحاليين
+  const now = new Date();
+  const { data: inmates } = await supabase.from('players')
+    .select('id, username, avatar, level, jail_until, gangs!gang_id(name,tag)')
+    .eq('in_jail', true)
+    .gt('jail_until', now.toISOString())
+    .order('jail_until', { ascending: true })
+    .limit(30);
+
+  const inJail = player.in_jail && new Date(player.jail_until) > now;
+  const bailCost = 20000;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">⛓️</div>
+      <div>
+        <div class="page-title">سجن <em>المدينة</em></div>
+        <div class="page-sub">المكان الأخير الذي يريده أي محترف</div>
+      </div>
+    </div>
+
+    <!-- حالة اللاعب -->
+    ${inJail ? `
+    <div class="jail-hero mb16">
+      <div class="jail-title">🔒 أنت خلف القضبان!</div>
+      <div class="bars">${Array(6).fill('<div class="bar"></div>').join('')}</div>
+      <div class="text-2 mb8">يتبقى على إطلاق سراحك:</div>
+      <div class="jail-timer" id="jail-countdown">${timeLeft(player.jail_until)}</div>
+      <div class="text-2 text-sm mt8">لا يمكنك ارتكاب الجرائم أو مهاجمة اللاعبين أثناء وجودك هنا</div>
+      <div class="mt16 g2">
+        <button class="btn btn-outline btn-lg" onclick="payBail()" id="bail-btn">
+          ⚖️ دفع كفالة – ${$$(bailCost)}
+        </button>
+        <a href="pharmacy.html" class="btn btn-ghost btn-lg">💊 الصيدلية</a>
+      </div>
+      ${player.cash < bailCost ? `<div class="mt10 text-sm" style="color:var(--orange)">⚠️ رصيدك (${$$(player.cash)}) أقل من الكفالة. ادخر واصبر!</div>` : ''}
+    </div>` : `
+    <div class="card mb16" style="border-color:rgba(0,230,118,.25);background:rgba(0,230,118,.04)">
+      <div class="flex items-c gap12">
+        <span style="font-size:2rem">✅</span>
+        <div>
+          <div class="bold" style="color:var(--green)">أنت حرّ!</div>
+          <div class="text-2 text-sm">لست في السجن حالياً. استمر في نشاطاتك.</div>
+        </div>
+      </div>
+    </div>`}
+
+    <!-- قواعد السجن -->
+    <div class="card mb16">
+      <div class="card-title mb14">📜 قواعد وأحكام السجن</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${[
+          ['1','الجرائم توضعك في <strong>السجن أو المشفى</strong> إذا فشلت – نسبة الخطر مذكورة على كل جريمة.'],
+          ['2','<strong>داخل السجن</strong>: لا يمكنك ارتكاب جرائم، ولا هجوم على لاعبين، ولا السفر بين المدن.'],
+          ['3','<strong>الخروج المجاني</strong>: انتظر انقضاء مدة العقوبة (من دقائق إلى ساعات حسب الجريمة).'],
+          ['4','<strong>الخروج المدفوع</strong>: ادفع كفالة قانونية بقيمة <strong style="color:var(--gold)">$20,000</strong> للخروج فوراً عبر الصيدلية.'],
+          ['5','مدة السجن تتراوح بين <strong>5 دقائق</strong> (سرقة بسيطة) و<strong>90 دقيقة</strong> (جريمة كبرى).'],
+          ['6','اللاعبون <strong>المحكوم عليهم مطوّلاً</strong> يظهرون في قائمة السجناء أدناه.'],
+          ['7','زيادة إحصائية <strong>الذكاء</strong> تقلل من احتمالية القبض عليك في الجرائم.'],
+          ['8','أعضاء العصابات يمكنهم <strong>مساعدة بعضهم</strong> عبر دفع الكفالة عنهم (قريباً).'],
+        ].map(([n,t])=>`<div class="rule-card"><div class="rule-num">${n}</div><div class="rule-text">${t}</div></div>`).join('')}
+      </div>
+    </div>
+
+    <!-- السجناء الحاليون -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">⛓️ السجناء الحاليون <span class="badge badge-r">${inmates?.length || 0}</span></div>
+      </div>
+      ${inmates && inmates.length > 0 ? `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${inmates.map(p => `
+          <div class="inmate-row" onclick="window.location.href='profile.html?id=${p.id}'">
+            <div style="font-size:1.4rem">${p.avatar}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.username}</div>
+              <div style="font-size:.72rem;color:var(--text2)">
+                مستوى ${p.level}
+                ${p.gangs ? ` · 💀 ${p.gangs.tag}` : ''}
+              </div>
+            </div>
+            <div style="text-align:left;flex-shrink:0">
+              <span class="badge badge-r">⏰ ${timeLeft(p.jail_until) || 'ينتهي قريباً'}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>` : `
+      <div class="empty" style="padding:30px">
+        <div class="ei">🕊️</div>
+        <p>لا يوجد سجناء حالياً</p>
+      </div>`}
+    </div>
+  `;
+
+  // تحديث العداد كل ثانية
+  if (_timerInterval) clearInterval(_timerInterval);
+  if (inJail) {
+    _timerInterval = setInterval(() => {
+      const el = document.getElementById('jail-countdown');
+      if (!el) { clearInterval(_timerInterval); return; }
+      const t = timeLeft(player.jail_until);
+      if (!t) { clearInterval(_timerInterval); init(); return; }
+      el.textContent = t;
+    }, 1000);
+  }
+}
+
+async function payBail() {
+  const btn = document.getElementById('bail-btn');
+  btn.disabled = true; btn.textContent = '⏳ جاري معالجة الكفالة...';
+  const { data, error } = await supabase.rpc('use_pharmacy_item', { p_item_id: 'bail' });
+  if (error || !data?.success) {
+    toast(data?.message || error?.message || 'فشل الإجراء', 'e');
+    btn.disabled = false; btn.textContent = '⚖️ دفع كفالة – $20,000';
+  } else {
+    sfxSuccess();
+    sfxMoney();
+    toast('🎉 أُطلق سراحك! أنت حرّ الآن.', 's', 4000);
+    if (_timerInterval) clearInterval(_timerInterval);
+    await init();
+  }
+}
+
+init();
+</script>
+</body>
+</html>

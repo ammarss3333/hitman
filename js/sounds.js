@@ -137,6 +137,70 @@ function sfxClick() {
   playTone(600, 'sine', 0.05, 0.15);
 }
 
+// 🎰 دوران السلوتس
+function sfxSlotSpin() {
+  if (_muted) return;
+  try {
+    const ctx = getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(220, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+    osc.start(); osc.stop(ctx.currentTime + 0.1);
+  } catch(e) {}
+}
+
+// 🎰 إيقاف بكرة (كليك)
+function sfxReelStop() {
+  playTone(500, 'square', 0.06, 0.25);
+  playTone(350, 'square', 0.04, 0.2, 0.06);
+}
+
+// 🏆 جاكبوت!
+function sfxJackpot() {
+  const melody = [523,659,784,1047,1319,1568,2093,2093,1568,1047];
+  melody.forEach((f, i) => playTone(f, 'sine', 0.18, 0.45, i * 0.07));
+  setTimeout(() => {
+    [800,1000,1200].forEach((f,i) => playTone(f,'triangle',0.12,0.3,i*0.05));
+  }, 800);
+}
+
+// 🎲 رمي النرد
+function sfxDiceRoll() {
+  if (_muted) return;
+  try {
+    const ctx = getCtx();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5) * 0.4;
+    }
+    const src = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    src.buffer = buf; src.connect(gain); gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    src.start();
+  } catch(e) {}
+}
+
+// 💊 استخدام دواء
+function sfxHeal() {
+  playTone(660, 'sine', 0.08, 0.2);
+  playTone(880, 'sine', 0.1,  0.2, 0.1);
+  playTone(1100,'sine', 0.12, 0.22, 0.2);
+}
+
+// 🎁 مكافأة يومية
+function sfxDailyBonus() {
+  [523,659,784,880,1047].forEach((f,i) => playTone(f,'sine',0.15,0.35,i*0.09));
+  setTimeout(() => sfxMoney(), 550);
+}
+
 // ============ زر كتم الصوت ============
 function toggleMute() {
   _muted = !_muted;

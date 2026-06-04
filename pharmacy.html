@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الصيدلية والمشفى – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+.pharma-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:768px){.pharma-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:400px){.pharma-grid{grid-template-columns:1fr}}
+
+.pharma-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;
+  gap:7px;animation:fadeUp .4s ease;transition:border-color .2s,box-shadow .2s;
+}
+.pharma-card:hover{border-color:var(--border-r);box-shadow:0 4px 18px var(--red-glow)}
+.pharma-card.disabled-card{opacity:.5}
+
+.pharma-icon{font-size:3rem;line-height:1;animation:float 3s ease-in-out infinite;margin-bottom:2px}
+.pharma-name{font-size:.97rem;font-weight:900;color:var(--text)}
+.pharma-desc{font-size:.78rem;color:var(--text2);line-height:1.4;min-height:36px;display:flex;align-items:center;justify-content:center}
+.pharma-price{font-size:1.05rem;font-weight:900;color:var(--gold);text-shadow:0 0 8px var(--gold-glow)}
+.pharma-min-lvl{font-size:.68rem;color:var(--muted)}
+
+.stats-bar{
+  display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;
+  animation:fadeUp .4s ease;
+}
+.stats-bar .sb-item{display:flex;align-items:center;gap:10px;flex:1;min-width:130px}
+.sb-item .sb-lbl{font-size:.72rem;color:var(--text2);font-weight:600}
+.sb-item .sb-val{font-size:.92rem;font-weight:900}
+.sb-item .sb-bars{flex:1;min-width:60px}
+
+.status-banner{
+  border-radius:var(--r);padding:14px 18px;margin-bottom:16px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  animation:fadeUp .4s ease;
+}
+.status-banner.jail-banner{background:rgba(255,152,0,.09);border:1px solid rgba(255,152,0,.32);color:var(--orange)}
+.status-banner.hosp-banner{background:rgba(220,20,60,.09);border:1px solid rgba(220,20,60,.32);color:var(--red)}
+.status-banner .ban-left{display:flex;align-items:center;gap:10px}
+.status-banner .ban-icon{font-size:1.8rem}
+.status-banner .ban-title{font-size:.95rem;font-weight:900}
+.status-banner .ban-sub{font-size:.78rem;opacity:.8;margin-top:2px}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+
+const PHARMA_ITEMS = [
+  { id:'painkiller',    name:'مسكّن ألم',       icon:'💊', desc:'يعيد 25 نقطة صحة',         effect:'health',   value:25,  price:500,   minLevel:1  },
+  { id:'bandage',       name:'ضمادة طبية',      icon:'🩹', desc:'يعيد 35 نقطة صحة',         effect:'health',   value:35,  price:1200,  minLevel:1  },
+  { id:'med_shot',      name:'حقنة طبية',       icon:'💉', desc:'يعيد 60 نقطة صحة',         effect:'health',   value:60,  price:2500,  minLevel:1  },
+  { id:'antibiotics',   name:'مضادات حيوية',    icon:'🔬', desc:'يعيد 100 نقطة صحة كاملاً', effect:'health',   value:100, price:6000,  minLevel:5  },
+  { id:'energy_drink',  name:'مشروب طاقة',      icon:'🧃', desc:'يعيد 20 نقطة طاقة',        effect:'energy',   value:20,  price:800,   minLevel:1  },
+  { id:'protein_shake', name:'بروتين شيك',      icon:'🥤', desc:'يعيد 45 نقطة طاقة',        effect:'energy',   value:45,  price:2500,  minLevel:5  },
+  { id:'adrenaline',    name:'حقنة أدرينالين',  icon:'⚡', desc:'يعيد طاقتك بالكامل',       effect:'energy',   value:999, price:9000,  minLevel:10 },
+  { id:'bail',          name:'كفالة قانونية',   icon:'⚖️', desc:'يُخرجك من السجن فوراً',    effect:'jail',     value:1,   price:20000, minLevel:1  },
+  { id:'vip_treatment', name:'علاج VIP',        icon:'🏥', desc:'يُخرجك من المشفى فوراً',   effect:'hospital', value:1,   price:12000, minLevel:1  },
+];
+
+async function init() {
+  player = await buildNav('pharmacy');
+  if (!player) return;
+
+  const inJail     = player.jail_until     && new Date(player.jail_until)     > new Date();
+  const inHospital = player.hospital_until && new Date(player.hospital_until) > new Date();
+  const jailTime   = inJail     ? timeLeft(player.jail_until)     : null;
+  const hospTime   = inHospital ? timeLeft(player.hospital_until) : null;
+  const maxHealth  = player.max_health || 100;
+  const maxEnergy  = player.max_energy || 100;
+  const playerLvl  = player.level || 1;
+
+  // ── Status Banners ──────────────────────────────
+  let banners = '';
+  if (inJail) {
+    banners += `
+      <div class="status-banner jail-banner">
+        <div class="ban-left">
+          <div class="ban-icon">⛓️</div>
+          <div>
+            <div class="ban-title">أنت خلف القضبان</div>
+            <div class="ban-sub">الوقت المتبقي: <strong>${jailTime}</strong></div>
+          </div>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="buyItem('bail')">⚖️ دفع الكفالة (${$$(20000)})</button>
+      </div>`;
+  }
+  if (inHospital) {
+    banners += `
+      <div class="status-banner hosp-banner">
+        <div class="ban-left">
+          <div class="ban-icon">🏥</div>
+          <div>
+            <div class="ban-title">أنت في المشفى</div>
+            <div class="ban-sub">الوقت المتبقي: <strong>${hospTime}</strong></div>
+          </div>
+        </div>
+        <button class="btn btn-r btn-sm" onclick="buyItem('vip_treatment')">🏥 علاج VIP (${$$(12000)})</button>
+      </div>`;
+  }
+
+  // ── Item Cards ──────────────────────────────────
+  const cards = PHARMA_ITEMS.map(item => {
+    const canAfford  = player.cash >= item.price;
+    const meetsLevel = playerLvl >= item.minLevel;
+    const isJailItem = item.effect === 'jail';
+    const isHospItem = item.effect === 'hospital';
+
+    let btnText  = 'شراء واستخدام';
+    let btnExtra = '';
+    let disabled = false;
+
+    if (isJailItem && !inJail) {
+      btnText = 'لست في السجن'; btnExtra = 'btn-ghost'; disabled = true;
+    } else if (isHospItem && !inHospital) {
+      btnText = 'لست في المشفى'; btnExtra = 'btn-ghost'; disabled = true;
+    } else if (!meetsLevel) {
+      btnText = `يتطلب مستوى ${item.minLevel}`; btnExtra = 'btn-ghost'; disabled = true;
+    } else if (!canAfford) {
+      btnText = 'رصيد غير كافٍ'; btnExtra = 'btn-ghost'; disabled = true;
+    } else {
+      btnExtra = 'btn-g';
+    }
+
+    let effectBadge;
+    switch (item.effect) {
+      case 'health':
+        effectBadge = `<span class="badge badge-g">❤️ صحة +${item.value === 999 ? 'كاملة' : item.value}</span>`; break;
+      case 'energy':
+        effectBadge = `<span class="badge badge-b">⚡ طاقة +${item.value === 999 ? 'كاملة' : item.value}</span>`; break;
+      case 'jail':
+        effectBadge = `<span class="badge badge-gold">⚖️ إطلاق سراح</span>`; break;
+      default:
+        effectBadge = `<span class="badge badge-r">🏥 مغادرة مشفى</span>`; break;
+    }
+
+    return `
+      <div class="pharma-card${disabled ? ' disabled-card' : ''}">
+        <div class="pharma-icon">${item.icon}</div>
+        <div class="pharma-name">${item.name}</div>
+        <div class="pharma-desc">${item.desc}</div>
+        ${effectBadge}
+        <div class="pharma-price">${$$(item.price)}</div>
+        ${item.minLevel > 1 ? `<div class="pharma-min-lvl">مستوى ${item.minLevel}+</div>` : ''}
+        <button class="btn ${btnExtra} btn-full btn-sm" ${disabled ? 'disabled' : ''} onclick="buyItem('${item.id}')">${btnText}</button>
+      </div>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">💊</div>
+      <div>
+        <div class="page-title">الصيدلية <em>والمشفى</em></div>
+        <div class="page-sub">اشترِ ما تحتاجه لاستعادة صحتك وطاقتك أو الخروج مبكراً</div>
+      </div>
+    </div>
+
+    ${banners}
+
+    <div class="stats-bar">
+      <div class="sb-item">
+        <span style="font-size:1.4rem">💵</span>
+        <div>
+          <div class="sb-lbl">الرصيد</div>
+          <div class="sb-val text-gold">${$$(player.cash)}</div>
+        </div>
+      </div>
+      <div class="sb-item">
+        <span style="font-size:1.4rem">❤️</span>
+        <div>
+          <div class="sb-lbl">الصحة</div>
+          <div class="sb-val" style="color:var(--red)">${player.health} / ${maxHealth}</div>
+        </div>
+        <div class="sb-bars">
+          <div class="pbar"><div class="pbar-fill hp" style="width:${pct(player.health, maxHealth)}%"></div></div>
+        </div>
+      </div>
+      <div class="sb-item">
+        <span style="font-size:1.4rem">⚡</span>
+        <div>
+          <div class="sb-lbl">الطاقة</div>
+          <div class="sb-val" style="color:var(--blue)">${player.energy} / ${maxEnergy}</div>
+        </div>
+        <div class="sb-bars">
+          <div class="pbar"><div class="pbar-fill en" style="width:${pct(player.energy, maxEnergy)}%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-title mb16">🛒 المنتجات المتاحة</div>
+    <div class="pharma-grid">${cards}</div>
+  `;
+}
+
+async function buyItem(itemId) {
+  const item = PHARMA_ITEMS.find(i => i.id === itemId);
+  if (!item) return;
+
+  const { data, error } = await supabase.rpc('use_pharmacy_item', { p_item_id: itemId });
+  if (error || !data?.success) {
+    sfxFail();
+    toast(data?.message || error?.message || 'حدث خطأ أثناء الشراء', 'e');
+  } else {
+    sfxSuccess();
+    sfxMoney();
+    toast(data.message || `تم استخدام ${item.name} بنجاح ✅`, 's', 4000);
+    await init();
+  }
+}
+
+init();
+</script>
+</body>
+</html>

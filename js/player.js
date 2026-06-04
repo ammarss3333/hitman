@@ -87,18 +87,21 @@ async function buildNav(activePage) {
   const unread = await loadUnread();
 
   const pages = [
-    { icon: '🏠', label: 'الصفحة الرئيسية', href: 'home.html',      id: 'home' },
-    { icon: '🌆', label: 'المدينة',           href: 'city.html',      id: 'city' },
-    { icon: '🔪', label: 'الجرائم',           href: 'crimes.html',    id: 'crimes' },
-    { icon: '💪', label: 'النادي الرياضي',    href: 'gym.html',       id: 'gym' },
-    { icon: '💼', label: 'العمل',             href: 'work.html',      id: 'work' },
-    { icon: '🏦', label: 'البنك',             href: 'bank.html',      id: 'bank' },
-    { icon: '🔫', label: 'المستودع',          href: 'inventory.html', id: 'inventory' },
-    { icon: '💀', label: 'العصابات',          href: 'gangs.html',     id: 'gangs' },
-    { icon: '✉️', label: 'البريد',             href: 'messages.html',  id: 'messages', badge: unread > 0 ? unread : 0 },
-    { icon: '📋', label: 'الأحداث',           href: 'events.html',    id: 'events' },
-    { icon: '🏆', label: 'المشاهير',          href: 'leaderboard.html',id: 'leaderboard' },
-    { icon: '🔍', label: 'البحث',             href: 'search.html',    id: 'search' },
+    { icon: '🏠', label: 'الصفحة الرئيسية', href: 'home.html',        id: 'home' },
+    { icon: '🌆', label: 'المدينة',           href: 'city.html',        id: 'city' },
+    { icon: '🔪', label: 'الجرائم',           href: 'crimes.html',      id: 'crimes' },
+    { icon: '💪', label: 'النادي الرياضي',    href: 'gym.html',         id: 'gym' },
+    { icon: '💼', label: 'العمل',             href: 'work.html',        id: 'work' },
+    { icon: '🏦', label: 'البنك',             href: 'bank.html',        id: 'bank' },
+    { icon: '🔫', label: 'المستودع',          href: 'inventory.html',   id: 'inventory' },
+    { icon: '💊', label: 'الصيدلية',          href: 'pharmacy.html',    id: 'pharmacy' },
+    { icon: '🎰', label: 'الكازينو',          href: 'casino.html',      id: 'casino' },
+    { icon: '⛓️', label: 'السجن',             href: 'jail.html',        id: 'jail' },
+    { icon: '💀', label: 'العصابات',          href: 'gangs.html',       id: 'gangs' },
+    { icon: '✉️', label: 'البريد',             href: 'messages.html',    id: 'messages', badge: unread > 0 ? unread : 0 },
+    { icon: '📋', label: 'الأحداث',           href: 'events.html',      id: 'events' },
+    { icon: '🏆', label: 'المشاهير',          href: 'leaderboard.html', id: 'leaderboard' },
+    { icon: '🔍', label: 'البحث',             href: 'search.html',      id: 'search' },
   ];
 
   const cityInfo = CITIES[player.city] || { name: player.city, flag: '🌐' };
