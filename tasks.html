@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>المهام اليومية – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+.streak-hero{background:linear-gradient(135deg,rgba(255,152,0,.1),rgba(220,20,60,.06));border:1px solid rgba(255,152,0,.3);border-radius:var(--r);padding:22px;text-align:center;margin-bottom:18px;position:relative;overflow:hidden}
+.streak-hero::before{content:'🔥';position:absolute;font-size:7rem;opacity:.05;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+.streak-num{font-size:3rem;font-weight:900;color:var(--orange);line-height:1;text-shadow:0 0 22px rgba(255,152,0,.4)}
+.streak-lbl{font-size:.85rem;color:var(--text2);margin-top:4px}
+.streak-strip{display:flex;justify-content:center;gap:7px;margin-top:16px;flex-wrap:wrap}
+.streak-day{width:38px;height:46px;border-radius:var(--r2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--bg2);border:1px solid var(--border);font-size:.65rem;color:var(--text2);transition:all .25s}
+.streak-day.on{background:linear-gradient(135deg,rgba(255,152,0,.18),rgba(220,20,60,.12));border-color:rgba(255,152,0,.5);color:var(--gold)}
+.streak-day .di{font-size:1.1rem;line-height:1}
+
+.task-row{display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border);transition:all .2s}
+.task-row.done{border-color:rgba(0,230,118,.3);background:rgba(0,230,118,.04)}
+.task-icon{font-size:1.7rem;flex-shrink:0;width:34px;text-align:center}
+.task-mid{flex:1;min-width:0}
+.task-title{font-size:.9rem;font-weight:700;margin-bottom:6px}
+.task-rew{font-size:.72rem;color:var(--text2);margin-bottom:6px}
+.task-rew .badge{margin-inline-end:4px}
+.task-prog{display:flex;align-items:center;gap:8px}
+.task-prog .pbar{flex:1}
+.task-prog .pnum{font-size:.7rem;color:var(--text2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.task-act{flex-shrink:0}
+.allbonus{background:linear-gradient(135deg,rgba(255,215,0,.1),rgba(255,152,0,.06));border:1px solid rgba(255,215,0,.35)}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+let daily = null;     // عدّادات اليوم
+let streak = 0;       // سلسلة الدخول الحالية
+
+// تعريفات المهام (مرآة لما في الخادم — fix_activities.sql)
+const TASKS = [
+  { id:'crimes3', icon:'🔪', title:'ارتكب 3 جرائم',          counter:'crimes_done',  target:3, cash:3000, exp:30, pts:1 },
+  { id:'attack1', icon:'⚔️', title:'نفّذ هجوماً على لاعب',    counter:'attacks_done', target:1, cash:2500, exp:25, pts:1 },
+  { id:'train2',  icon:'💪', title:'تدرّب مرتين في النادي',   counter:'trains_done',  target:2, cash:2000, exp:20, pts:1 },
+  { id:'casino1', icon:'🎰', title:'جرّب حظك في الكازينو',    counter:'casino_done',  target:1, cash:1500, exp:15, pts:1 },
+];
+const ALLBONUS = { id:'allbonus', cash:5000, exp:50, pts:3 };
+
+function claimed() { return (daily && daily.claimed_tasks) ? daily.claimed_tasks : []; }
+function isClaimed(id) { return claimed().includes(id); }
+function allDone() { return TASKS.every(t => isClaimed(t.id)); }
+
+async function init() {
+  player = await buildNav('tasks');
+  if (!player) return;
+
+  // فحص سلسلة الدخول (يمنح مكافأة مرة واحدة يومياً)
+  let streakReward = null;
+  const { data: sd } = await supabase.rpc('check_login_streak');
+  if (sd && sd.success) {
+    streak = sd.streak || 0;
+    if (!sd.already && sd.reward) streakReward = sd.reward;
+  }
+
+  // جلب عدّادات اليوم
+  const { data: dd } = await supabase.rpc('get_daily');
+  if (dd && dd.success) daily = dd;
+  else daily = { crimes_done:0, attacks_done:0, trains_done:0, casino_done:0, claimed_tasks:[] };
+
+  render();
+
+  if (streakReward) {
+    sfxDailyBonus();
+    toast(`🔥 سلسلة دخول ${streak} يوم! حصلت على ${$$(streakReward.cash)} و${streakReward.points} نقطة`, 's', 5000);
+  }
+}
+
+function render() {
+  const STRIP = 7;
+  const filled = Math.min(streak, STRIP);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">✅</div>
+      <div>
+        <div class="page-title">المهام <em>اليومية</em></div>
+        <div class="page-sub">أنجز أهدافك كل يوم واحصل على المكافآت</div>
+      </div>
+    </div>
+
+    <!-- سلسلة الدخول -->
+    <div class="streak-hero">
+      <div class="streak-num">🔥 ${streak}</div>
+      <div class="streak-lbl">${streak > 0 ? `يوم متتالٍ من تسجيل الدخول` : 'سجّل دخولك يومياً لبدء السلسلة'}</div>
+      <div class="streak-strip">
+        ${Array.from({length:STRIP}, (_,i) => {
+          const dayNo = i + 1;
+          const on = dayNo <= filled;
+          return `<div class="streak-day ${on?'on':''}">
+            <span class="di">${on?'🔥':'➖'}</span>
+            <span>يوم ${dayNo}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- قائمة المهام -->
+    <div class="card mb16">
+      <div class="card-title mb14">🎯 مهام اليوم</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${TASKS.map(renderTask).join('')}
+      </div>
+    </div>
+
+    <!-- مكافأة إكمال الكل -->
+    <div class="card allbonus">
+      <div class="flex items-c gap12 mb10">
+        <span style="font-size:1.9rem">🏆</span>
+        <div style="flex:1">
+          <div class="bold" style="color:var(--gold)">مكافأة إكمال كل المهام</div>
+          <div class="task-rew">
+            <span class="badge badge-gold">💰 ${$$(ALLBONUS.cash)}</span>
+            <span class="badge badge-b">⭐ +${ALLBONUS.exp} خبرة</span>
+            <span class="badge badge-r">🎟️ +${ALLBONUS.pts} نقاط</span>
+          </div>
+        </div>
+      </div>
+      ${isClaimed('allbonus')
+        ? `<button class="btn btn-ghost btn-full" disabled>✅ مستلَم</button>`
+        : allDone()
+          ? `<button class="btn btn-g btn-full" onclick="claim('allbonus')">استلم المكافأة الكبرى</button>`
+          : `<button class="btn btn-ghost btn-full" disabled>أكمل كل المهام أولاً (${claimedCount()}/${TASKS.length})</button>`
+      }
+    </div>
+  `;
+}
+
+function claimedCount() { return TASKS.filter(t => isClaimed(t.id)).length; }
+
+function renderTask(t) {
+  const cur = daily[t.counter] || 0;
+  const met = cur >= t.target;
+  const done = isClaimed(t.id);
+  const p = pct(Math.min(cur, t.target), t.target);
+  return `
+    <div class="task-row ${done?'done':''}">
+      <div class="task-icon">${t.icon}</div>
+      <div class="task-mid">
+        <div class="task-title">${t.title}</div>
+        <div class="task-rew">
+          <span class="badge badge-gold">💰 ${$$(t.cash)}</span>
+          <span class="badge badge-b">⭐ +${t.exp}</span>
+          <span class="badge badge-r">🎟️ +${t.pts}</span>
+        </div>
+        <div class="task-prog">
+          <div class="pbar"><div class="pbar-fill ${met?'ok':'gold'}" style="width:${p}%"></div></div>
+          <span class="pnum">${Math.min(cur, t.target)}/${t.target}</span>
+        </div>
+      </div>
+      <div class="task-act">
+        ${done
+          ? `<span class="badge badge-g">✅ مستلَم</span>`
+          : met
+            ? `<button class="btn btn-r btn-sm" onclick="claim('${t.id}')">استلم</button>`
+            : `<button class="btn btn-ghost btn-sm" disabled>غير مكتمل</button>`
+        }
+      </div>
+    </div>`;
+}
+
+async function claim(taskId) {
+  const { data, error } = await supabase.rpc('claim_task', { p_task_id: taskId });
+  if (error || !data || !data.success) {
+    toast((data && data.message) || (error && error.message) || 'فشل الاستلام', 'e');
+    return;
+  }
+  sfxMoney();
+  sfxSuccess();
+  toast(data.message || '🎉 تم الاستلام!', 's', 4000);
+  // تحديث الحالة المحلية ثم إعادة الرسم
+  const { data: dd } = await supabase.rpc('get_daily');
+  if (dd && dd.success) daily = dd;
+  render();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -6,6 +6,19 @@
 <title>المدينة – قاتل مأجور</title>
 <link rel="icon" href="favicon.svg">
 <link rel="stylesheet" href="css/style.css">
+<style>
+  .citygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .citycard{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center;position:relative;transition:all .25s}
+  .citycard.here{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .citycard .cflag{font-size:2.4rem}
+  .citycard .cnm{font-weight:700;margin-top:6px}
+  .citycard .cspec{font-size:.72rem;color:var(--text2);margin-top:2px}
+  .citycard .cbonus{font-size:.72rem;color:var(--gold);margin-top:8px;font-weight:700}
+  .goodrow{display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)}
+  .goodrow .gi{font-size:1.6rem}
+  .goodrow .gmeta{flex:1}
+  .qin{width:60px;padding:4px 6px;border-radius:var(--r2);border:1px solid var(--border);background:var(--bg2);color:var(--text);text-align:center}
+</style>
 </head>
 <body>
 <button class="mob-toggle" id="mob-toggle">☰</button>
@@ -28,7 +41,8 @@ async function init() {
   player = await buildNav('city');
   if (!player) return;
 
-  const city = CITIES[player.city] || { name: player.city, flag: '🌐', desc: '' };
+  const city = CITIES[player.city] || { name: player.city, flag: '🌐', desc: '', bonusLabel: '', specialty: '' };
+  const locked = (player.in_jail || player.in_hospital);
 
   // اللاعبون في نفس المدينة
   const { data: cityPlayers } = await supabase.from('players')
@@ -43,13 +57,37 @@ async function init() {
   const { data: ownedProps } = await supabase.from('player_properties').select('property_id').eq('player_id', player.id);
   const ownedIds = ownedProps?.map(p => p.property_id) || [];
 
+  // السوق المحلي للمدينة الحالية + بضائع اللاعب
+  const { data: marketRows } = await supabase.from('city_market').select('*').eq('city', player.city).order('base_price');
+  const { data: myGoods } = await supabase.from('player_goods').select('*').gt('qty', 0);
+
+  // أعلى سعر معروف لكل سلعة (لتلميح المراجحة)
+  const { data: allMarket } = await supabase.from('city_market').select('item_name, city, base_price');
+  const bestSell = {};
+  (allMarket || []).forEach(r => {
+    if (!bestSell[r.item_name] || r.base_price > bestSell[r.item_name].price)
+      bestSell[r.item_name] = { price: r.base_price, city: r.city };
+  });
+
   document.getElementById('main').innerHTML = `
     <div class="page-hdr">
-      <div class="page-icon">${city.flag}</div>
+      <div class="page-icon">🌆</div>
       <div>
-        <div class="page-title">${city.name} – <em>${city.desc}</em></div>
-        <div class="page-sub">مدينتك الحالية</div>
+        <div class="page-title">السفر والمدن</div>
+        <div class="page-sub">أنت الآن في ${city.flag} ${city.name} – <em>${city.desc}</em></div>
       </div>
+    </div>
+
+    <!-- مدينتك الحالية ومزيتها -->
+    <div class="card mb16">
+      <div class="flex just-b items-c">
+        <div>
+          <div style="font-size:1.1rem;font-weight:800">${city.flag} ${city.name}</div>
+          <div style="font-size:.8rem;color:var(--text2)">${city.specialty||''}</div>
+        </div>
+        ${city.bonusLabel?`<span class="badge badge-gold">⭐ ${city.bonusLabel}</span>`:''}
+      </div>
+      ${locked?'<div class="badge badge-r mt8">'+(player.in_jail?'🚔 أنت في السجن - لا يمكنك السفر':'🏥 أنت في المشفى - لا يمكنك السفر')+'</div>':''}
     </div>
 
     <!-- روابط سريعة في المدينة -->
@@ -70,16 +108,81 @@ async function init() {
 
     <!-- السفر -->
     <div class="card mb16">
-      <div class="card-title mb14">✈️ السفر لمدينة أخرى ($2,000)</div>
-      <div class="g3">
-        ${Object.entries(CITIES).map(([key, c]) => `
-          <div class="crime-card${key===player.city?' locked':''}" onclick="${key!==player.city?`travelTo('${key}','${c.name}')`:''}">
-            <div style="font-size:2rem">${c.flag}</div>
-            <div style="font-weight:700;margin-top:6px">${c.name}</div>
-            <div style="font-size:.75rem;color:var(--text2)">${c.desc}</div>
-            ${key===player.city?'<span class="badge badge-g mt8">أنت هنا</span>':''}
-          </div>
-        `).join('')}
+      <div class="card-title mb14">✈️ السفر لمدينة أخرى</div>
+      <div class="citygrid">
+        ${Object.entries(CITIES).map(([key, c]) => {
+          const isHere = key===player.city;
+          const cost = c.travelCost||0;
+          const cant = locked || player.cash < cost;
+          return `
+          <div class="citycard${isHere?' here':''}">
+            <div class="cflag">${c.flag}</div>
+            <div class="cnm">${c.name}</div>
+            <div class="cspec">${c.specialty||c.desc}</div>
+            <div class="cbonus">${c.bonusLabel||''}</div>
+            ${isHere
+              ? '<span class="badge badge-gold mt8">📍 أنت هنا</span>'
+              : `<button class="btn btn-r btn-sm mt8" ${cant?'disabled':''}
+                   onclick="travelTo('${key}','${c.name}',${cost})">
+                   سافر ${cost>0?`($${cost.toLocaleString()})`:'(مجاناً)'}
+                 </button>`}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- السوق المحلي -->
+    <div class="card mb16">
+      <div class="card-title mb6">🛒 السوق المحلي – ${city.name}</div>
+      <div style="font-size:.78rem;color:var(--text2);margin-bottom:12px">💡 اشترِ هنا بسعر رخيص وبِع في مدينة أغلى لتحقيق ربح المراجحة.</div>
+      <div class="g2">
+        <div>
+          <div class="badge badge-r mb8">للشراء في ${city.name}</div>
+          ${marketRows && marketRows.length ? `
+            <div style="display:flex;flex-direction:column;gap:8px">
+            ${marketRows.map(m => {
+              const best = bestSell[m.item_name];
+              const hint = best && best.city!==player.city && best.price>m.base_price
+                ? `<div style="font-size:.7rem;color:var(--green)">أغلى في ${CITIES[best.city]?.name||best.city}: $${best.price.toLocaleString()}</div>` : '';
+              return `
+              <div class="goodrow">
+                <div class="gi">${m.icon}</div>
+                <div class="gmeta">
+                  <div style="font-weight:700;font-size:.85rem">${m.item_name}</div>
+                  <div style="font-size:.72rem;color:var(--gold)">$${m.base_price.toLocaleString()} • مخزون ${m.stock}</div>
+                  ${hint}
+                </div>
+                <input type="number" min="1" value="1" id="buy_${m.id}" class="qin">
+                <button class="btn btn-r btn-sm" ${(locked||m.stock<1)?'disabled':''}
+                  onclick="buyGood('${m.id}','${m.item_name}')">شراء</button>
+              </div>`;
+            }).join('')}
+            </div>
+          ` : '<div class="empty" style="padding:20px"><div class="ei">🛒</div><p>لا توجد بضائع هنا</p></div>'}
+        </div>
+        <div>
+          <div class="badge badge-g mb8">بضائعك (للبيع)</div>
+          ${myGoods && myGoods.length ? `
+            <div style="display:flex;flex-direction:column;gap:8px">
+            ${myGoods.map(g => {
+              const localM = (marketRows||[]).find(m => m.item_name===g.item_name);
+              const sellAt = localM ? localM.base_price : Math.max(Math.floor((bestSell[g.item_name]?.price||2)*0.5),1);
+              return `
+              <div class="goodrow">
+                <div class="gi">${localM?localM.icon:'📦'}</div>
+                <div class="gmeta">
+                  <div style="font-weight:700;font-size:.85rem">${g.item_name} ×${g.qty}</div>
+                  <div style="font-size:.72rem;color:${localM?'var(--gold)':'var(--text2)'}">
+                    سعر البيع هنا: $${sellAt.toLocaleString()}${localM?'':' (مخفّض)'}
+                  </div>
+                </div>
+                <input type="number" min="1" max="${g.qty}" value="${g.qty}" id="sell_${g.item_name}" class="qin">
+                <button class="btn btn-r btn-sm" onclick="sellGood('${g.item_name}')">بيع</button>
+              </div>`;
+            }).join('')}
+            </div>
+          ` : '<div class="empty" style="padding:20px"><div class="ei">📦</div><p>لا تملك بضائع بعد</p></div>'}
+        </div>
       </div>
     </div>
 
@@ -135,12 +238,29 @@ async function init() {
   `;
 }
 
-async function travelTo(city, cityName) {
-  confirm(`السفر إلى ${cityName} ($2,000)؟`, async () => {
+async function travelTo(city, cityName, cost) {
+  const costTxt = cost > 0 ? `($${Number(cost).toLocaleString()})` : '(مجاناً)';
+  confirm(`السفر إلى ${cityName} ${costTxt}؟`, async () => {
     const { data, error } = await supabase.rpc('travel_to_city', { p_city: city });
     toast(data?.message || error?.message, data?.success ? 's' : 'e');
     if (data?.success) { await buildNav('city'); await init(); }
   });
+}
+
+async function buyGood(marketId, itemName) {
+  const el = document.getElementById('buy_' + marketId);
+  const qty = Math.max(parseInt(el?.value, 10) || 0, 1);
+  const { data, error } = await supabase.rpc('buy_good', { p_market_id: marketId, p_qty: qty });
+  toast(data?.message || error?.message, data?.success ? 's' : 'e');
+  if (data?.success) { await buildNav('city'); await init(); }
+}
+
+async function sellGood(itemName) {
+  const el = document.getElementById('sell_' + itemName);
+  const qty = Math.max(parseInt(el?.value, 10) || 0, 1);
+  const { data, error } = await supabase.rpc('sell_good', { p_item_name: itemName, p_qty: qty });
+  toast(data?.message || error?.message, data?.success ? 's' : 'e');
+  if (data?.success) { await buildNav('city'); await init(); }
 }
 
 async function buyProperty(propId, name, price) {

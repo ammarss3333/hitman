@@ -24,11 +24,11 @@ window.supabase = _sbLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 // أسماء المدن
 const CITIES = {
-  beirut:   { name: 'بيروت',    flag: '🇱🇧', desc: 'عاصمة الجريمة' },
-  amman:    { name: 'عمّان',    flag: '🇯🇴', desc: 'مدينة الصفقات' },
-  damascus: { name: 'دمشق',     flag: '🇸🇾', desc: 'عش الدبابير' },
-  cairo:    { name: 'القاهرة',  flag: '🇪🇬', desc: 'المدينة التي لا تنام' },
-  dubai:    { name: 'دبي',      flag: '🇦🇪', desc: 'جنة الأثرياء' }
+  beirut:   { name: 'بيروت',    flag: '🇱🇧', desc: 'عاصمة الجريمة',        bonus: 'crime_success',  bonusPct: 10, bonusLabel: '+10% نجاح الجرائم',  travelCost: 0,    specialty: 'القاعدة الرئيسية' },
+  amman:    { name: 'عمّان',    flag: '🇯🇴', desc: 'مدينة الصفقات',        bonus: 'shop_discount',  bonusPct: 15, bonusLabel: '-15% أسعار المتجر',  travelCost: 1500, specialty: 'أسواق رخيصة' },
+  damascus: { name: 'دمشق',     flag: '🇸🇾', desc: 'عش الدبابير',          bonus: 'attack_power',   bonusPct: 10, bonusLabel: '+10% قوة الهجوم',    travelCost: 2500, specialty: 'عقود خطيرة' },
+  cairo:    { name: 'القاهرة',  flag: '🇪🇬', desc: 'المدينة التي لا تنام', bonus: 'exp_boost',      bonusPct: 20, bonusLabel: '+20% خبرة',          travelCost: 2000, specialty: 'فرص لا تنتهي' },
+  dubai:    { name: 'دبي',      flag: '🇦🇪', desc: 'جنة الأثرياء',         bonus: 'bank_interest',  bonusPct: 5,  bonusLabel: '+ فائدة بنكية أعلى', travelCost: 5000, specialty: 'مال وفير' }
 };
 
 // أنواع الأسلحة

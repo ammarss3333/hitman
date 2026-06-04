@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>عقود الاغتيال – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+let contracts = [];
+let doneIds = new Set();
+
+// تقدير فرصة النجاح من جهة العميل (نفس صيغة attempt_contract)
+function estimateChance(difficulty) {
+  const power = player.strength*0.6 + player.fitness*0.4 + (player.equippedAttack || 0);
+  let c = power / Math.max(power + difficulty, 0.0001);
+  c = Math.max(0.05, Math.min(0.95, c));
+  return Math.round(c * 100);
+}
+
+async function loadEquippedAttack() {
+  const { data } = await supabase
+    .from('inventory')
+    .select('equipped, weapons(attack_bonus, type)')
+    .eq('player_id', player.id)
+    .eq('equipped', true);
+  let sum = 0;
+  (data || []).forEach(r => {
+    if (r.weapons && r.weapons.type !== 'armor') sum += (r.weapons.attack_bonus || 0);
+  });
+  player.equippedAttack = sum;
+}
+
+async function init() {
+  player = await buildNav('contracts');
+  if (!player) return;
+
+  await loadEquippedAttack();
+
+  const { data: ctr } = await supabase.from('contracts').select('*').order('difficulty');
+  contracts = ctr || [];
+
+  const { data: pc } = await supabase.from('player_contracts').select('contract_id, status').eq('player_id', player.id);
+  doneIds = new Set((pc || []).filter(r => r.status === 'completed').map(r => r.contract_id));
+
+  const cityInfo = CITIES[player.city] || { name: player.city, flag: '🌐' };
+  const now = new Date();
+  const inJail = player.in_jail && new Date(player.jail_until) > now;
+  const inHosp = player.in_hospital && new Date(player.hospital_until) > now;
+  const blocked = inJail || inHosp;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🎯</div>
+      <div>
+        <div class="page-title">عقود <em>الاغتيال</em></div>
+        <div class="page-sub">عقود مأجورة عبر المدن – كلما زاد الخطر زاد المردود</div>
+      </div>
+    </div>
+
+    ${blocked ? `<div class="card mb16" style="border-color:rgba(220,20,60,.4);background:rgba(220,20,60,.07)">
+      <div class="flex items-c gap12">${inJail ? '⛓️' : '🏥'} <div><div class="bold" style="color:var(--red)">${inJail ? 'أنت في السجن!' : 'أنت في المشفى!'}</div>
+      <div class="text-2 text-sm">${timeLeft(inJail ? player.jail_until : player.hospital_until)}</div></div></div></div>` : ''}
+
+    <div class="g4 mb16">
+      <div class="stat-c"><div class="si">${cityInfo.flag}</div><div class="sv" style="font-size:1rem">${cityInfo.name}</div><div class="sl">موقعك الحالي</div></div>
+      <div class="stat-c"><div class="si">⚡</div><div class="sv">${player.energy}</div><div class="sl">الطاقة المتاحة</div></div>
+      <div class="stat-c"><div class="si">💪</div><div class="sv">${player.strength}</div><div class="sl">قوتك</div></div>
+      <div class="stat-c"><div class="si">🎯</div><div class="sv">${player.level}</div><div class="sl">مستواك</div></div>
+    </div>
+
+    <div class="g2" id="contracts-grid">
+      ${contracts.map(c => contractCard(c, blocked)).join('')}
+    </div>
+  `;
+}
+
+function contractCard(c, blocked) {
+  const cityInfo = CITIES[c.city] || { name: c.city, flag: '🌐' };
+  const done = doneIds.has(c.id);
+  const wrongCity = player.city !== c.city;
+  const lowLevel = player.level < c.min_level;
+  const lowStr = player.strength < c.req_strength;
+  const noEnergy = player.energy < 25;
+  const chance = estimateChance(c.difficulty);
+
+  let action = '';
+  if (done) {
+    action = `<div class="badge badge-g" style="font-size:.85rem">✅ منجز</div>`;
+  } else if (wrongCity) {
+    action = `<a class="btn btn-b btn-full" href="city.html">سافر إلى ${cityInfo.name} أولاً ${cityInfo.flag}</a>`;
+  } else if (lowLevel) {
+    action = `<button class="btn btn-full" disabled>🔒 يتطلب مستوى ${c.min_level}</button>`;
+  } else if (lowStr) {
+    action = `<button class="btn btn-full" disabled>💪 يتطلب قوة ${c.req_strength}</button>`;
+  } else if (noEnergy) {
+    action = `<button class="btn btn-full" disabled>⚡ تحتاج 25 طاقة</button>`;
+  } else if (blocked) {
+    action = `<button class="btn btn-full" disabled>غير متاح الآن</button>`;
+  } else {
+    action = `<button class="btn btn-r btn-full" onclick="doContract('${c.id}', this)">تنفيذ العقد 🔪</button>`;
+  }
+
+  return `
+    <div class="card" id="ctr-${c.id}" style="${done ? 'opacity:.7' : ''}">
+      <div class="flex items-c gap12 mb8">
+        <div style="font-size:2rem">${cityInfo.flag}</div>
+        <div style="flex:1">
+          <div class="bold">${c.title}</div>
+          <div class="text-2 text-sm">🎯 الهدف: ${c.target_name || '—'} · ${cityInfo.name}</div>
+        </div>
+      </div>
+      <div class="text-2 text-sm mb8">${c.description || ''}</div>
+      <div class="crime-rewards mb8">
+        <span class="badge badge-gold">💰 ${$$(c.reward)}</span>
+        <span class="badge badge-r">🩸 صعوبة ${c.difficulty}</span>
+        <span class="badge badge-b">🎯 مستوى ${c.min_level}</span>
+        ${c.req_strength > 0 ? `<span class="badge badge-b">💪 قوة ${c.req_strength}</span>` : ''}
+      </div>
+      ${!done ? `<div class="text-sm mb8" style="color:${chance>=70?'var(--green)':chance>=40?'var(--orange)':'var(--red)'}">تقدير النجاح ~${chance}%</div>` : ''}
+      ${action}
+    </div>`;
+}
+
+async function doContract(id, btn) {
+  btn.disabled = true; btn.textContent = '🔪 جاري التنفيذ...';
+  sfxAttack();
+
+  const { data, error } = await supabase.rpc('attempt_contract', { p_contract_id: id });
+  if (error) { toast(error.message, 'e'); btn.disabled = false; btn.textContent = 'تنفيذ العقد 🔪'; return; }
+
+  if (!data.success) {
+    sfxFail();
+    toast(data.message, 'e', 5000);
+    btn.disabled = false; btn.textContent = 'تنفيذ العقد 🔪';
+    return;
+  }
+
+  setTimeout(() => data.win ? sfxWin() : sfxLose(), 300);
+  if (data.win) {
+    sfxMoney();
+    toast(data.message + ' (فرصتك كانت ' + data.success_chance + '%)', 's', 5000);
+  } else {
+    toast(data.message + ' (فرصتك كانت ' + data.success_chance + '%)', 'e', 5000);
+  }
+  setTimeout(() => init(), 1500);
+}
+
+init();
+</script>
+</body>
+</html>

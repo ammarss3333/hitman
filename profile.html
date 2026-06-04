@@ -215,6 +215,9 @@ function showCombatResult(data) {
         ${data.attacker_wins ? '🏆 انتصرت!' : '💀 خسرت!'}
       </div>
       <div style="text-align:center;font-size:.9rem;color:var(--text2)">${data.message}</div>
+      ${typeof data.win_chance === 'number' ? `
+        <div style="text-align:center;font-size:.85rem;color:var(--text2);margin-top:6px">🎲 فرصتك كانت ${data.win_chance}%</div>
+      ` : ''}
       ${data.attacker_wins && data.money_stolen > 0 ? `
         <div style="text-align:center;margin-top:10px;font-size:1.2rem;font-weight:900;color:var(--gold)">+${$$(data.money_stolen)}</div>
       ` : ''}

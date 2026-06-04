@@ -24,12 +24,27 @@
 <script src="js/sounds.js"></script>
 <script>
 let player;
+let skillMap = {};
+
+// تقدير فرصة النجاح من جهة العميل (نفس صيغة perform_crime)
+function crimeChance(crime) {
+  const skill = skillMap[crime.id] || 0;
+  const power = player.intelligence*0.4 + skill*6 + player.level*2;
+  const diff = crime.min_level*40 + player.level*1.5;
+  let c = power / Math.max(power + diff, 0.0001);
+  c = Math.max(0.02, Math.min(0.95, c));
+  return Math.round(c * 100);
+}
 
 async function init() {
   player = await buildNav('crimes');
   if (!player) return;
 
   const { data: crimes } = await supabase.from('crimes').select('*').order('min_level');
+
+  const { data: skills } = await supabase.from('player_crime_skill').select('crime_id, skill').eq('player_id', player.id);
+  skillMap = {};
+  (skills || []).forEach(s => { skillMap[s.crime_id] = s.skill; });
 
   const now = new Date();
   const inJail = player.in_jail && new Date(player.jail_until) > now;
@@ -66,6 +81,8 @@ async function init() {
         const locked = player.level < c.min_level;
         const noEnergy = player.energy < c.energy_cost;
         const disabled = locked || blocked;
+        const skill = skillMap[c.id] || 0;
+        const chance = crimeChance(c);
         return `
           <div class="crime-card${disabled ? ' locked' : ''}" onclick="${!disabled ? `doCrime('${c.id}')` : ''}">
             <div class="ci">${c.image}</div>
@@ -76,6 +93,13 @@ async function init() {
               <span class="badge badge-b">⚡ -${c.energy_cost}</span>
               <span class="badge badge-g">⭐ +${c.base_exp}</span>
               ${c.jail_chance > 0 ? `<span class="badge badge-r">⛓️ ${c.jail_chance}%</span>` : ''}
+            </div>
+            <div class="flex items-c gap8" style="margin-top:8px">
+              <span class="badge badge-b" data-skill="${c.id}">🧠 مهارة: ${skill}</span>
+              ${!locked ? `<span class="text-sm" style="color:${chance>=60?'var(--green)':chance>=30?'var(--orange)':'var(--red)'}">فرصة النجاح ~${chance}%</span>` : ''}
+            </div>
+            <div style="height:5px;border-radius:4px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(skill,100)}%;background:var(--blue)"></div>
             </div>
             ${locked ? `<div style="margin-top:8px;font-size:.75rem;color:var(--orange)">🔒 يتطلب مستوى ${c.min_level}</div>` : ''}
             ${!locked && noEnergy ? `<div style="margin-top:8px;font-size:.75rem;color:var(--red)">⚡ طاقتك غير كافية</div>` : ''}
@@ -104,13 +128,14 @@ async function doCrime(crimeId) {
     // نجاح
     sfxSuccess();
     sfxMoney();
+    if (typeof data.new_skill === 'number') skillMap[crimeId] = data.new_skill;
     toast(data.message, 's', 4000);
     card.innerHTML = `
       <div style="text-align:center;padding:16px">
-        <div style="font-size:2.5rem;animation:popIn .4s ease">✅</div>
-        <div style="font-size:1.1rem;font-weight:700;color:var(--green);margin-top:8px">نجحت!</div>
+        <div style="font-size:2.5rem;animation:popIn .4s ease">${data.crit ? '💥' : '✅'}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--green);margin-top:8px">${data.crit ? 'ضربة معلم!' : 'نجحت!'}</div>
         <div style="color:var(--gold);font-size:1.3rem;font-weight:900;margin-top:4px">+${$$(data.money_earned)}</div>
-        <div style="color:var(--blue);font-size:.85rem;margin-top:2px">+${data.exp_earned} خبرة</div>
+        <div style="color:var(--blue);font-size:.85rem;margin-top:2px">+${data.exp_earned} خبرة · 🧠 مهارة: ${data.new_skill}</div>
       </div>`;
     setTimeout(() => init(), 2500);
   } else {
