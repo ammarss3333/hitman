@@ -8,17 +8,19 @@
 const SUPABASE_URL = 'https://slhnvntvgsozplgepagr.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_Sb_7ImVHv_R_f-4FQiFbtw_4jO0gRY2';
 
-// عند الانتهاء من إعداد Supabase، أيضاً:
-// - شغّل supabase_schema.sql في SQL Editor
-// - فعّل Email Auth في Authentication > Providers
-
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+// إنشاء العميل وتخزينه على window لتجنب تعارض الأسماء
+// نستخدم sessionStorage بدلاً من localStorage لتجنب حجب المتصفح
+window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
+    storage: window.sessionStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true
   }
 });
+
+// اختصار مريح
+const supabase = window.supabase;
 
 // أسماء المدن
 const CITIES = {
