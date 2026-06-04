@@ -5,8 +5,8 @@
 // 2. Project Settings > API > انسخ URL و anon key
 // 3. استبدل القيمتين أدناه
 
-const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY_HERE';
+const SUPABASE_URL = 'https://slhnvntvgsozplgepagr.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Sb_7ImVHv_R_f-4FQiFbtw_4jO0gRY2';
 
 // عند الانتهاء من إعداد Supabase، أيضاً:
 // - شغّل supabase_schema.sql في SQL Editor
