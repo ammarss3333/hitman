@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS public.announcements (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "ann_read" ON public.announcements FOR SELECT USING (true);
+DROP POLICY IF EXISTS "ann_read" ON public.announcements;
+CREATE POLICY "ann_read" ON public.announcements FOR SELECT USING (true);
 
 -- جدول المسابقات
 CREATE TABLE IF NOT EXISTS public.competitions (
@@ -117,7 +118,8 @@ CREATE TABLE IF NOT EXISTS public.competitions (
   ends_at      TIMESTAMPTZ
 );
 ALTER TABLE public.competitions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "comp_read" ON public.competitions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "comp_read" ON public.competitions;
+CREATE POLICY "comp_read" ON public.competitions FOR SELECT USING (true);
 
 -- ربط gang_id في جدول اللاعبين بجدول العصابات (مفتاح خارجي)
 -- هذا ضروري حتى يتعرف Supabase/PostgREST على العلاقة players -> gangs
