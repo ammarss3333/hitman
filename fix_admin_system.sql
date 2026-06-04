@@ -61,7 +61,7 @@ RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_name TEXT; v_title TEXT;
 BEGIN
   IF NOT is_admin() THEN RETURN jsonb_build_object('success',false,'message','🚫 غير مصرّح'); END IF;
-  UPDATE players SET cash = GREATEST(0, cash + p_amount) WHERE id = p_target RETURNING username INTO v_name;
+  UPDATE players SET cash = cash + p_amount WHERE id = p_target RETURNING username INTO v_name;
   IF v_name IS NULL THEN RETURN jsonb_build_object('success',false,'message','لاعب غير موجود'); END IF;
   v_title := CASE WHEN p_amount >= 0 THEN '🎁 منحة إدارية' ELSE '⚠️ خصم إداري' END;
   INSERT INTO events(player_id,type,title,description,money_change)
@@ -82,7 +82,7 @@ BEGIN
     RETURN jsonb_build_object('success',false,'message','حقل غير مسموح');
   END IF;
   EXECUTE format('UPDATE players SET %I = $1 WHERE id = $2', p_field)
-    USING GREATEST(0, p_value), p_target;
+    USING p_value, p_target;
   SELECT username INTO v_name FROM players WHERE id = p_target;
   IF v_name IS NULL THEN RETURN jsonb_build_object('success',false,'message','لاعب غير موجود'); END IF;
   INSERT INTO events(player_id,type,title,description)
@@ -194,7 +194,7 @@ RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_count INTEGER;
 BEGIN
   IF NOT is_admin() THEN RETURN jsonb_build_object('success',false,'message','🚫 غير مصرّح'); END IF;
-  UPDATE players SET cash = GREATEST(0, cash + p_amount) WHERE is_banned = false;
+  UPDATE players SET cash = cash + p_amount WHERE is_banned = false;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   INSERT INTO events(player_id,type,title,description,money_change)
   SELECT id,'admin','🎁 هدية جماعية',COALESCE(p_reason,'هدية من الإدارة'),p_amount
