@@ -53,7 +53,8 @@ async function init() {
   const inHosp  = player.in_hospital && new Date(player.hospital_until) > now;
   const expNeeded = player.level * 100;
   const expPct    = pct(player.exp, expNeeded);
-  const canBonus  = !player.last_daily_bonus || new Date(player.last_daily_bonus).toDateString() !== new Date().toDateString();
+  // يوم اللعبة = 2 ساعة — المكافأة تتجدد كل 2 ساعة حقيقية
+  const canBonus  = !player.last_daily_bonus || (now - new Date(player.last_daily_bonus)) >= 7200000;
   const bonusAmt  = 1000 + player.level * 500;
 
   // ── ticker content ──────────────────────────────────────────
@@ -128,7 +129,7 @@ async function init() {
         <span style="font-size:1.8rem">🎁</span>
         <div>
           <div style="font-weight:900;font-size:.95rem">مكافأة يومية متاحة!</div>
-          <div class="text-2 text-sm">استلم ${$$(bonusAmt)} مجاناً – تتجدد كل 24 ساعة</div>
+          <div class="text-2 text-sm">استلم ${$$(bonusAmt)} مجاناً – تتجدد كل 2 ساعة</div>
         </div>
       </div>
       <button class="daily-btn" id="bonus-btn" onclick="claimBonus()">🎁 استلم مكافأتك اليومية – ${$$(bonusAmt)}</button>

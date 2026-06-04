@@ -45,14 +45,19 @@ async function init() {
   const { data: jobs } = await supabase.from('jobs').select('*').order('base_salary');
   const currentJob = jobs?.find(j => j.id === player.job_id);
 
-  // تبريد الوردية
+  // تبريد الوردية — يوم اللعبة = 2 ساعة حقيقية
   const now = new Date();
   let shiftHoursLeft = null;
   if (player.last_shift) {
     const diff = (now - new Date(player.last_shift)) / 3600000;
-    shiftHoursLeft = Math.max(0, 24 - diff);
+    shiftHoursLeft = Math.max(0, 2 - diff);
   }
   const shiftReady = shiftHoursLeft === null || shiftHoursLeft === 0;
+  // دالة لعرض الوقت المتبقي بالدقائق إن كان أقل من ساعة
+  function fmtShiftLeft(h) {
+    if (h >= 1) return h.toFixed(1) + ' ساعة';
+    return Math.ceil(h * 60) + ' دقيقة';
+  }
 
   const jp = player.job_points || 0;
   const wm = player.work_manual || 0, wi = player.work_intel || 0, we = player.work_endurance || 0;
@@ -123,7 +128,7 @@ async function init() {
       <div class="mt14">
         ${shiftReady
           ? `<button class="btn btn-g btn-full" onclick="doShift()">🛠️ بدء وردية اليوم</button>`
-          : `<button class="btn btn-ghost btn-full" disabled>⏰ الوردية القادمة خلال ${shiftHoursLeft.toFixed(1)} ساعة</button>`}
+          : `<button class="btn btn-ghost btn-full" disabled>⏰ الوردية القادمة خلال ${fmtShiftLeft(shiftHoursLeft)}</button>`}
       </div>
 
       <div class="mt8">
