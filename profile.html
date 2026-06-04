@@ -37,7 +37,7 @@ async function init() {
   if (!targetId) { toast('لم يُحدَّد لاعب', 'e'); history.back(); return; }
 
   const [{ data: t }, { data: inv }, { data: gang }, { data: atks }] = await Promise.all([
-    supabase.from('players').select('*, gangs(name, tag)').eq('id', targetId).single(),
+    supabase.from('players').select('*, gangs!gang_id(name, tag)').eq('id', targetId).single(),
     supabase.from('inventory').select('*, weapons(*)').eq('player_id', targetId),
     targetId ? supabase.from('gang_members').select('gangs(name,tag,logo)').eq('player_id', targetId).single() : { data: null },
     supabase.from('attacks').select('*')

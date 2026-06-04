@@ -73,7 +73,7 @@ async function doSearch() {
   if (q.length < 2) return;
 
   const { data } = await supabase.from('players')
-    .select('id, username, avatar, level, city, gang_id, gangs(name,tag), strength')
+    .select('id, username, avatar, level, city, gang_id, gangs!gang_id(name,tag), strength')
     .ilike('username', `%${q}%`)
     .neq('id', player.id)
     .limit(20);
@@ -83,7 +83,7 @@ async function doSearch() {
 
 async function loadByCity(city) {
   const { data } = await supabase.from('players')
-    .select('id, username, avatar, level, city, gang_id, gangs(name,tag), strength')
+    .select('id, username, avatar, level, city, gang_id, gangs!gang_id(name,tag), strength')
     .eq('city', city)
     .neq('id', player.id)
     .order('level', { ascending: false })

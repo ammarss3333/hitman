@@ -32,7 +32,7 @@ async function init() {
 
   // اللاعبون في نفس المدينة
   const { data: cityPlayers } = await supabase.from('players')
-    .select('id, username, avatar, level, gangs(name,tag)')
+    .select('id, username, avatar, level, gangs!gang_id(name,tag)')
     .eq('city', player.city)
     .neq('id', player.id)
     .order('level', { ascending: false })

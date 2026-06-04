@@ -63,7 +63,7 @@ async function loadBoard(type) {
 
   const col = type;
   const { data: players } = await supabase.from('players')
-    .select('id, username, avatar, level, strength, cash, exp, city, gang_id, gangs(name,tag)')
+    .select('id, username, avatar, level, strength, cash, exp, city, gang_id, gangs!gang_id(name,tag)')
     .order(col, { ascending: false })
     .limit(50);
 
