@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الملف الشخصي – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.attack-btn{animation:glow 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player, targetId, target;
+
+async function init() {
+  player = await buildNav('search');
+  if (!player) return;
+
+  const params = new URLSearchParams(window.location.search);
+  targetId = params.get('id');
+  if (!targetId) { toast('لم يُحدَّد لاعب', 'e'); history.back(); return; }
+
+  const [{ data: t }, { data: inv }, { data: gang }, { data: atks }] = await Promise.all([
+    supabase.from('players').select('*, gangs(name, tag)').eq('id', targetId).single(),
+    supabase.from('inventory').select('*, weapons(*)').eq('player_id', targetId),
+    targetId ? supabase.from('gang_members').select('gangs(name,tag,logo)').eq('player_id', targetId).single() : { data: null },
+    supabase.from('attacks').select('*')
+      .or(`attacker_id.eq.${player.id},defender_id.eq.${player.id}`)
+      .or(`attacker_id.eq.${targetId},defender_id.eq.${targetId}`)
+      .order('created_at', { ascending: false }).limit(10)
+  ]);
+
+  if (!t) { toast('اللاعب غير موجود', 'e'); return; }
+  target = t;
+
+  const isSelf = targetId === player.id;
+  const equipped = inv?.filter(i => i.equipped) || [];
+  const atkBonus = equipped.filter(i => i.weapons?.type !== 'armor').reduce((s,i) => s + (i.weapons?.attack_bonus || 0), 0);
+  const defBonus = equipped.filter(i => i.weapons?.type === 'armor').reduce((s,i) => s + (i.weapons?.defense_bonus || 0), 0);
+
+  // آخر تفاعل بين اللاعبين
+  const prevAtks = atks?.filter(a => (a.attacker_id === player.id && a.defender_id === targetId) || (a.attacker_id === targetId && a.defender_id === player.id)) || [];
+
+  document.getElementById('main').innerHTML = `
+    <!-- ملف اللاعب -->
+    <div class="profile-hero mb16">
+      <div class="profile-av">${t.avatar}</div>
+      <div style="flex:1;min-width:0">
+        <div class="profile-username">${t.username}</div>
+        <div class="profile-meta">
+          <span class="badge badge-r">مستوى ${t.level}</span>
+          ${t.gangs ? `<span class="badge badge-b">💀 ${t.gangs.name} [${t.gangs.tag}]</span>` : '<span class="badge badge-gray">بدون عصابة</span>'}
+          <span class="badge badge-gray">🌆 ${cityName(t.city)}</span>
+          <span class="badge badge-gray">📅 ${relTime(t.created_at)}</span>
+        </div>
+      </div>
+      ${!isSelf ? `
+        <div class="flex flex-col gap6">
+          <button class="btn btn-r attack-btn" onclick="attackPlayer()">⚔️ هجوم</button>
+          <a href="messages.html?to=${t.username}" class="btn btn-ghost btn-sm text-c">✉️ رسالة</a>
+        </div>
+      ` : `<a href="home.html" class="btn btn-ghost">← رجوع للرئيسية</a>`}
+    </div>
+
+    <!-- الإحصائيات -->
+    <div class="card mb16">
+      <div class="card-title mb14">📊 إحصائيات ${isSelf ? 'شخصيتك' : t.username}</div>
+      <div class="profile-stats">
+        ${[
+          ['💪','القوة',t.strength],
+          ['🏃','اللياقة',t.fitness],
+          ['🛡️','الدفاع',t.defense],
+          ['🔧','العمالة',t.labor],
+          ['🧠','الذكاء',t.intelligence],
+        ].map(([i,l,v])=>`
+          <div class="ps-item">
+            <div style="font-size:1.3rem">${i}</div>
+            <div class="ps-val">${v}</div>
+            <div class="ps-lbl">${l}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- التجهيز والصحة -->
+    <div class="g2 mb16">
+      <div class="card">
+        <div class="card-title mb12">❤️ الحالة</div>
+        ${[
+          ['❤️','الصحة',t.health,t.max_health,'hp'],
+          ['⚡','الطاقة',t.energy,t.max_energy,'en'],
+        ].map(([ic,lb,v,mx,cls])=>`
+          <div class="mb10">
+            <div class="flex just-b mb6" style="font-size:.8rem"><span>${ic} ${lb}</span><span class="text-2">${v}/${mx}</span></div>
+            <div class="pbar"><div class="pbar-fill ${cls}" style="width:${pct(v,mx)}%"></div></div>
+          </div>
+        `).join('')}
+        ${t.in_jail && new Date(t.jail_until) > new Date() ? `<span class="badge badge-r mt8">⛓️ في السجن</span>` : ''}
+        ${t.in_hospital && new Date(t.hospital_until) > new Date() ? `<span class="badge badge-r mt8">🏥 في المشفى</span>` : ''}
+      </div>
+      <div class="card">
+        <div class="card-title mb12">⚔️ القوة القتالية</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="background:var(--bg2);padding:10px;border-radius:var(--r2)">
+            <div style="font-size:.72rem;color:var(--text2)">قوة الهجوم</div>
+            <div style="font-size:1.3rem;font-weight:900;color:var(--red)">${t.strength + atkBonus}</div>
+            ${atkBonus > 0 ? `<div style="font-size:.7rem;color:var(--text2)">${t.strength} + ${atkBonus} (سلاح)</div>` : ''}
+          </div>
+          <div style="background:var(--bg2);padding:10px;border-radius:var(--r2)">
+            <div style="font-size:.72rem;color:var(--text2)">قوة الدفاع</div>
+            <div style="font-size:1.3rem;font-weight:900;color:var(--blue)">${t.defense + defBonus}</div>
+            ${defBonus > 0 ? `<div style="font-size:.7rem;color:var(--text2)">${t.defense} + ${defBonus} (درع)</div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- الأسلحة المجهزة -->
+    ${equipped.length > 0 ? `
+    <div class="card mb16">
+      <div class="card-title mb12">🔫 التجهيزات النشطة</div>
+      <div class="flex flex-wrap gap8">
+        ${equipped.map(i=>`
+          <div class="wpn-card" style="min-width:120px">
+            <div class="wpn-icon">${i.weapons?.image}</div>
+            <div class="wpn-name" style="font-size:.8rem">${i.weapons?.name}</div>
+            ${i.weapons?.attack_bonus?`<span class="badge badge-r">⚔️ +${i.weapons.attack_bonus}</span>`:''}
+            ${i.weapons?.defense_bonus?`<span class="badge badge-b">🛡️ +${i.weapons.defense_bonus}</span>`:''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- سجل المعارك بين اللاعبين -->
+    ${prevAtks.length > 0 ? `
+    <div class="card">
+      <div class="card-title mb12">⚔️ ${isSelf ? 'آخر معاركك' : `سجل المعارك مع ${t.username}`}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${prevAtks.map(a => {
+          const iWon = a.winner_id === player.id;
+          return `
+            <div class="flex items-c gap10" style="padding:8px;background:var(--bg2);border-radius:var(--r2);border-right:3px solid ${iWon?'var(--green)':'var(--red)'}">
+              <span style="font-size:1.2rem">${iWon ? '✅' : '❌'}</span>
+              <div style="flex:1;font-size:.8rem">
+                <div>${a.attacker_name} <span class="text-2">هاجم</span> ${a.defender_name}</div>
+                ${a.money_stolen > 0 ? `<div style="color:var(--gold)">💰 ${$$(a.money_stolen)} مسروقة</div>` : ''}
+              </div>
+              <div style="font-size:.7rem;color:var(--muted)">${relTime(a.created_at)}</div>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+    ` : ''}
+  `;
+}
+
+async function attackPlayer() {
+  const now = new Date();
+  if (player.in_jail && new Date(player.jail_until) > now) { toast('لا يمكنك الهجوم وأنت في السجن!', 'e'); return; }
+  if (player.in_hospital && new Date(player.hospital_until) > now) { toast('لا يمكنك الهجوم وأنت في المشفى!', 'e'); return; }
+  if (player.energy < 20) { toast('تحتاج 20 طاقة للهجوم', 'w'); return; }
+
+  const btn = document.querySelector('.attack-btn');
+  btn.disabled = true; btn.textContent = '⚔️ جاري الهجوم...';
+  sfxAttack();
+
+  const { data, error } = await supabase.rpc('attack_player', { p_target_id: targetId });
+
+  if (error) { toast(error.message, 'e'); btn.disabled = false; btn.textContent = '⚔️ هجوم'; return; }
+
+  // عرض نتيجة المعركة
+  setTimeout(() => data.attacker_wins ? sfxWin() : sfxLose(), 300);
+  showCombatResult(data);
+  await buildNav('search');
+}
+
+function showCombatResult(data) {
+  openModal(`
+    <div class="modal-hdr">
+      <span class="modal-title">نتيجة المعركة</span>
+      <button class="modal-close" onclick="closeModal();init()">✕</button>
+    </div>
+    <div class="combat-wrap">
+      <div class="combat-fighters">
+        <div class="fighter ${data.attacker_wins ? 'win' : 'lose'}">
+          <div class="fighter-av">${player.avatar}</div>
+          <div class="fighter-name">${data.attacker_name}</div>
+          <div class="fighter-stats">🎲 ${data.attacker_roll}</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="fighter ${!data.attacker_wins ? 'win' : 'lose'}">
+          <div class="fighter-av">${target?.avatar || '👤'}</div>
+          <div class="fighter-name">${data.defender_name}</div>
+          <div class="fighter-stats">🎲 ${data.defender_roll}</div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:2rem;margin:12px 0;animation:popIn .5s ease">
+        ${data.attacker_wins ? '🏆 انتصرت!' : '💀 خسرت!'}
+      </div>
+      <div style="text-align:center;font-size:.9rem;color:var(--text2)">${data.message}</div>
+      ${data.attacker_wins && data.money_stolen > 0 ? `
+        <div style="text-align:center;margin-top:10px;font-size:1.2rem;font-weight:900;color:var(--gold)">+${$$(data.money_stolen)}</div>
+      ` : ''}
+    </div>
+    <button class="btn btn-r btn-full mt14" onclick="closeModal();init()">حسناً</button>
+  `);
+}
+
+init();
+</script>
+</body>
+</html>

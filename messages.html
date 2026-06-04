@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>البريد – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+let player, activeTab = 'inbox';
+
+async function init() {
+  player = await buildNav('messages');
+  if (!player) return;
+
+  const [inbox, sent] = await Promise.all([
+    supabase.from('messages').select('*, players!messages_from_id_fkey(username,avatar)').eq('to_id', player.id).order('created_at', { ascending: false }).limit(30),
+    supabase.from('messages').select('*, players!messages_to_id_fkey(username,avatar)').eq('from_id', player.id).order('created_at', { ascending: false }).limit(30)
+  ]);
+
+  // تحديد الرسائل كمقروءة
+  const unreadIds = inbox.data?.filter(m => !m.read).map(m => m.id) || [];
+  if (unreadIds.length > 0) {
+    await supabase.from('messages').update({ read: true }).in('id', unreadIds);
+  }
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">✉️</div>
+      <div>
+        <div class="page-title">البريد <em>الشخصي</em></div>
+        <div class="page-sub">تواصل مع أصدقائك وأعدائك</div>
+      </div>
+    </div>
+
+    <div class="flex gap10 mb16 flex-wrap">
+      <button class="btn ${activeTab==='inbox'?'btn-r':'btn-ghost'}" onclick="switchTab('inbox')">
+        📥 البريد الوارد ${unreadIds.length > 0 ? `<span class="nb">${unreadIds.length}</span>` : ''}
+      </button>
+      <button class="btn ${activeTab==='sent'?'btn-r':'btn-ghost'}" onclick="switchTab('sent')">📤 المُرسَل</button>
+      <button class="btn btn-b" onclick="showCompose()" style="margin-right:auto">✍️ رسالة جديدة</button>
+    </div>
+
+    <!-- صندوق الوارد -->
+    <div id="tab-inbox" style="display:${activeTab==='inbox'?'':'none'}">
+      ${renderMsgList(inbox.data, 'inbox')}
+    </div>
+
+    <!-- المرسل -->
+    <div id="tab-sent" style="display:${activeTab==='sent'?'':'none'}">
+      ${renderMsgList(sent.data, 'sent')}
+    </div>
+  `;
+}
+
+function renderMsgList(msgs, type) {
+  if (!msgs || msgs.length === 0) {
+    return `<div class="empty"><div class="ei">✉️</div><p>لا توجد رسائل</p></div>`;
+  }
+  return `<div style="display:flex;flex-direction:column;gap:6px">
+    ${msgs.map(m => {
+      const other = type === 'inbox' ? m.players : m.players;
+      return `
+        <div class="card" style="cursor:pointer;border-color:${!m.read && type==='inbox'?'rgba(68,138,255,.35)':'var(--border)'};background:${!m.read && type==='inbox'?'rgba(68,138,255,.04)':'var(--card)'}" onclick="readMsg(${JSON.stringify(m).replace(/"/g,"'")})">
+          <div class="flex items-c gap10">
+            <div style="font-size:1.4rem">${other?.avatar || '👤'}</div>
+            <div style="flex:1;min-width:0">
+              <div class="flex just-b">
+                <span style="font-weight:700;font-size:.875rem">${type==='inbox'?m.from_name:other?.username}</span>
+                <span style="font-size:.72rem;color:var(--muted)">${relTime(m.created_at)}</span>
+              </div>
+              <div style="font-size:.83rem;color:${!m.read&&type==='inbox'?'var(--text)':'var(--text2)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                ${!m.read && type==='inbox' ? '🔵 ' : ''}${m.subject}
+              </div>
+              <div style="font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.body.substring(0,60)}...</div>
+            </div>
+          </div>
+        </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function readMsg(msg) {
+  openModal(`
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title">📧 ${msg.subject}</div>
+        <div style="font-size:.75rem;color:var(--text2);margin-top:3px">من: ${msg.from_name} · ${relTime(msg.created_at)}</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="background:var(--bg2);padding:14px;border-radius:var(--r2);margin-bottom:14px;font-size:.875rem;line-height:1.7;white-space:pre-wrap">${msg.body}</div>
+    <div class="flex gap8">
+      <button class="btn btn-b" onclick="closeModal();replyTo('${msg.from_name}','Re: ${msg.subject.replace(/'/g,"\\'")}')">↩️ رد</button>
+      <button class="btn btn-ghost" onclick="closeModal()">إغلاق</button>
+    </div>
+  `);
+}
+
+function replyTo(username, subject) {
+  showCompose(username, subject);
+}
+
+function showCompose(toUser = '', subject = '') {
+  openModal(`
+    <div class="modal-hdr">
+      <span class="modal-title">✍️ رسالة جديدة</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="fg">
+      <label class="fl">إلى (اسم اللاعب)</label>
+      <input type="text" class="fc" id="msg-to" placeholder="اسم اللاعب" value="${toUser}">
+    </div>
+    <div class="fg">
+      <label class="fl">الموضوع</label>
+      <input type="text" class="fc" id="msg-subject" placeholder="موضوع الرسالة" value="${subject}">
+    </div>
+    <div class="fg">
+      <label class="fl">الرسالة</label>
+      <textarea class="fc" id="msg-body" rows="5" placeholder="اكتب رسالتك هنا..."></textarea>
+    </div>
+    <div class="flex gap8">
+      <button class="btn btn-r btn-full" onclick="sendMsg()">إرسال 📤</button>
+      <button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+    </div>
+  `);
+}
+
+async function sendMsg() {
+  const to = document.getElementById('msg-to').value.trim();
+  const subject = document.getElementById('msg-subject').value.trim();
+  const body = document.getElementById('msg-body').value.trim();
+  if (!to || !subject || !body) { toast('أكمل جميع الحقول', 'w'); return; }
+  const btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+  const { data, error } = await supabase.rpc('send_message', { p_to: to, p_subject: subject, p_body: body });
+  closeModal();
+  toast(data?.message || error?.message, data?.success ? 's' : 'e');
+  if (data?.success) await init();
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-inbox').style.display = tab === 'inbox' ? '' : 'none';
+  document.getElementById('tab-sent').style.display = tab === 'sent' ? '' : 'none';
+  document.querySelectorAll('.flex.gap10 .btn').forEach((b, i) => {
+    b.className = `btn ${(i === 0 && tab === 'inbox') || (i === 1 && tab === 'sent') ? 'btn-r' : 'btn-ghost'}`;
+  });
+}
+
+// URL params للرد المباشر
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('to')) {
+  setTimeout(() => showCompose(urlParams.get('to')), 1000);
+}
+
+init();
+</script>
+</body>
+</html>

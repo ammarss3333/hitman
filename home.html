@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الصفحة الرئيسية – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+async function init() {
+  const player = await buildNav('home');
+  if (!player) return;
+
+  // فائدة البنك
+  await supabase.rpc('apply_bank_interest');
+
+  // تحميل الأحداث الأخيرة
+  const { data: events } = await supabase.from('events')
+    .select('*').eq('player_id', player.id)
+    .order('created_at', { ascending: false }).limit(5);
+
+  // تحميل آخر الهجمات
+  const { data: attacks } = await supabase.from('attacks')
+    .select('*')
+    .or(`attacker_id.eq.${player.id},defender_id.eq.${player.id}`)
+    .order('created_at', { ascending: false }).limit(3);
+
+  const cityInfo = CITIES[player.city] || { name: player.city, flag: '🌐' };
+  const now = new Date();
+  const inJail = player.in_jail && new Date(player.jail_until) > now;
+  const inHosp = player.in_hospital && new Date(player.hospital_until) > now;
+
+  // حساب نسبة الخبرة
+  const expNeeded = player.level * 100;
+  const expPct = pct(player.exp, expNeeded);
+
+  document.getElementById('main').innerHTML = `
+    <!-- رأس الصفحة -->
+    <div class="page-hdr">
+      <div class="page-icon">🏠</div>
+      <div>
+        <div class="page-title">مرحباً، <em>${player.username}</em></div>
+        <div class="page-sub">${cityInfo.flag} ${cityInfo.name} · ${relTime(player.last_active)}</div>
+      </div>
+    </div>
+
+    <!-- حالة طارئة -->
+    ${inJail ? `<div class="card mb16" style="border-color:rgba(255,152,0,.4);background:rgba(255,152,0,.07)">
+      <div class="flex items-c gap10">
+        <span style="font-size:2rem">⛓️</span>
+        <div>
+          <div class="bold" style="color:var(--orange)">أنت في السجن!</div>
+          <div class="text-2" style="font-size:.83rem">ستُطلق سراحك خلال: ${timeLeft(player.jail_until)}</div>
+        </div>
+      </div>
+    </div>` : ''}
+    ${inHosp ? `<div class="card mb16" style="border-color:rgba(220,20,60,.4);background:rgba(220,20,60,.07)">
+      <div class="flex items-c gap10">
+        <span style="font-size:2rem">🏥</span>
+        <div>
+          <div class="bold" style="color:var(--red)">أنت في المشفى!</div>
+          <div class="text-2" style="font-size:.83rem">ستتعافى خلال: ${timeLeft(player.hospital_until)}</div>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <!-- ملخص الشخصية -->
+    <div class="card mb16">
+      <div class="card-hdr">
+        <div class="card-title">🎯 ملخص الشخصية</div>
+        <a href="profile.html?id=${player.id}" class="btn btn-ghost btn-sm">عرض الملف</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+        <div style="font-size:2.5rem;background:var(--bg2);width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--border-r);box-shadow:0 0 14px var(--red-glow)">${player.avatar}</div>
+        <div style="flex:1">
+          <div style="font-size:1.1rem;font-weight:900">${player.username}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+            <span class="badge badge-r">مستوى ${player.level}</span>
+            ${player.gangs ? `<span class="badge badge-b">[${player.gangs.tag}] ${player.gangs.name}</span>` : ''}
+            ${player.job_id ? `<span class="badge badge-gray">💼 ${player.job_id}</span>` : ''}
+            <span class="badge badge-gold">🏅 ${num(player.points)} نقطة</span>
+          </div>
+        </div>
+      </div>
+      <!-- شريط الخبرة -->
+      <div class="flex items-c gap8 mb8">
+        <span style="font-size:.78rem;color:var(--text2)">الخبرة: ${player.exp}/${expNeeded}</span>
+        <span style="font-size:.72rem;color:var(--red)">${expPct.toFixed(0)}%</span>
+      </div>
+      <div class="pbar"><div class="pbar-fill exp" style="width:${expPct}%"></div></div>
+    </div>
+
+    <!-- الإحصائيات -->
+    <div class="g5 mb16">
+      ${[
+        ['💪','القوة',player.strength],
+        ['🏃','اللياقة',player.fitness],
+        ['🛡️','الدفاع',player.defense],
+        ['🔧','العمالة',player.labor],
+        ['🧠','الذكاء',player.intelligence],
+      ].map(([i,l,v])=>`
+        <div class="stat-c">
+          <div class="si">${i}</div>
+          <div class="sv">${v}</div>
+          <div class="sl">${l}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- الطاقة والمال -->
+    <div class="g2 mb16">
+      <div class="card">
+        <div class="card-title mb12">⚡ الموارد</div>
+        ${[
+          ['❤️','الصحة',player.health,player.max_health,'hp'],
+          ['⚡','الطاقة',player.energy,player.max_energy,'en'],
+          ['🔥','الإرادة',player.willpower,player.max_willpower,'wp'],
+        ].map(([i,l,v,mx,cls])=>`
+          <div class="mb12">
+            <div class="flex just-b mb8" style="font-size:.8rem">
+              <span>${i} ${l}</span><span class="text-2">${v}/${mx}</span>
+            </div>
+            <div class="pbar"><div class="pbar-fill ${cls}" style="width:${pct(v,mx)}%"></div></div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="card">
+        <div class="card-title mb12">💰 الأموال</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="background:var(--bg2);border-radius:var(--r2);padding:12px">
+            <div style="font-size:.75rem;color:var(--text2)">النقد</div>
+            <div style="font-size:1.4rem;font-weight:900;color:var(--gold)">${$$(player.cash)}</div>
+          </div>
+          ${player.has_bank_account ? `
+          <div style="background:var(--bg2);border-radius:var(--r2);padding:12px">
+            <div style="font-size:.75rem;color:var(--text2)">البنك (2% فائدة يومياً)</div>
+            <div style="font-size:1.4rem;font-weight:900;color:var(--green)">${$$(player.bank_balance)}</div>
+          </div>` : `
+          <div style="background:var(--bg2);border-radius:var(--r2);padding:12px;opacity:.6">
+            <div style="font-size:.75rem;color:var(--text2)">لا يوجد حساب بنكي</div>
+            <a href="bank.html" class="btn btn-ghost btn-sm mt8">فتح حساب</a>
+          </div>`}
+        </div>
+      </div>
+    </div>
+
+    <!-- وصول سريع -->
+    <div class="card mb16">
+      <div class="card-title mb14">⚡ وصول سريع</div>
+      <div class="g4">
+        <a href="crimes.html" class="btn btn-r">🔪 جرائم</a>
+        <a href="gym.html" class="btn btn-b">💪 تدريب</a>
+        <a href="work.html" class="btn btn-gold">💼 عمل</a>
+        <a href="bank.html" class="btn btn-g">🏦 بنك</a>
+        <a href="city.html" class="btn btn-ghost">🌆 مدينة</a>
+        <a href="gangs.html" class="btn btn-ghost">💀 عصابات</a>
+        <a href="messages.html" class="btn btn-ghost">✉️ بريد</a>
+        <a href="leaderboard.html" class="btn btn-ghost">🏆 مشاهير</a>
+      </div>
+    </div>
+
+    <!-- الأحداث الأخيرة -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">📋 آخر الأحداث</div>
+        <a href="events.html" class="btn btn-ghost btn-sm">الكل</a>
+      </div>
+      ${events && events.length > 0 ? `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${events.map(ev => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:var(--r2);border:1px solid var(--border)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:.85rem;font-weight:600">${ev.title}</div>
+                ${ev.description ? `<div style="font-size:.75rem;color:var(--text2)">${ev.description}</div>` : ''}
+              </div>
+              <div style="text-align:left;flex-shrink:0">
+                ${ev.money_change ? `<div style="font-size:.8rem;font-weight:700;color:${ev.money_change > 0 ? 'var(--green)' : 'var(--red)'}">${ev.money_change > 0 ? '+' : ''}${$$(ev.money_change)}</div>` : ''}
+                <div style="font-size:.7rem;color:var(--muted)">${relTime(ev.created_at)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div class="empty"><div class="ei">📋</div><p>لا توجد أحداث بعد</p></div>'}
+    </div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

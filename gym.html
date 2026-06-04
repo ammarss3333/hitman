@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>النادي الرياضي – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('gym');
+  if (!player) return;
+
+  const { data: courses } = await supabase.from('courses').select('*').order('level_required');
+  const { data: activeCourses } = await supabase.from('player_courses')
+    .select('*, courses(*)').eq('player_id', player.id).eq('completed', false);
+
+  const now = new Date();
+  const inJail = player.in_jail && new Date(player.jail_until) > now;
+  const inHosp = player.in_hospital && new Date(player.hospital_until) > now;
+
+  const stats = [
+    { key:'strength',    icon:'💪', label:'القوة',    val:player.strength    },
+    { key:'fitness',     icon:'🏃', label:'اللياقة',  val:player.fitness     },
+    { key:'defense',     icon:'🛡️', label:'الدفاع',   val:player.defense     },
+    { key:'labor',       icon:'🔧', label:'العمالة',  val:player.labor       },
+    { key:'intelligence',icon:'🧠', label:'الذكاء',   val:player.intelligence },
+  ];
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">💪</div>
+      <div>
+        <div class="page-title">النادي <em>الرياضي</em></div>
+        <div class="page-sub">طوّر إحصائياتك وأصبح الأقوى</div>
+      </div>
+    </div>
+
+    <div class="g2 mb16">
+      <!-- التدريب المباشر -->
+      <div class="card">
+        <div class="card-title mb14">🏋️ تدريب مباشر</div>
+        <div class="flex items-c gap8 mb12" style="background:var(--bg2);padding:10px;border-radius:var(--r2)">
+          <span>⚡</span>
+          <div style="flex:1">
+            <div class="pbar"><div class="pbar-fill en" style="width:${pct(player.energy,player.max_energy)}%"></div></div>
+          </div>
+          <span style="font-size:.8rem;color:var(--text2)">${player.energy}/${player.max_energy}</span>
+        </div>
+        <div class="fg">
+          <label class="fl">اختر الصفة للتدريب</label>
+          <select class="fc" id="train-stat">
+            ${stats.map(s=>`<option value="${s.key}">${s.icon} ${s.label} (${s.val})</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">كمية الطاقة المستخدمة</label>
+          <input type="number" class="fc" id="train-energy" value="10" min="1" max="${player.energy}" placeholder="10">
+          <div style="font-size:.72rem;color:var(--text2);margin-top:4px">كل 10 طاقة = +1 نقطة في الصفة</div>
+        </div>
+        <button class="btn btn-b btn-full" onclick="doTrain()"${inJail||inHosp?'disabled':''}>
+          ${inJail?'⛓️ أنت في السجن':inHosp?'🏥 أنت في المشفى':'💪 ابدأ التدريب'}
+        </button>
+      </div>
+
+      <!-- الإحصائيات الحالية -->
+      <div class="card">
+        <div class="card-title mb14">📊 إحصائياتك</div>
+        ${stats.map(s => `
+          <div class="mb12">
+            <div class="flex just-b mb6">
+              <span style="font-size:.85rem">${s.icon} ${s.label}</span>
+              <span style="font-weight:700;color:var(--red)">${s.val}</span>
+            </div>
+            <div class="pbar"><div class="pbar-fill ok" style="width:${Math.min(s.val,100)}%"></div></div>
+          </div>
+        `).join('')}
+        <div class="flex items-c gap8 mt12" style="background:rgba(255,215,0,.07);padding:10px;border-radius:var(--r2);border:1px solid rgba(255,215,0,.2)">
+          🔥 <div style="font-size:.8rem"><span class="text-gold font-bold">الإرادة: ${player.willpower}/${player.max_willpower}</span><br><span class="text-2" style="font-size:.72rem">تنقص بكل تدريب، تتجدد مع الوقت</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- مركز التدريب (دورات) -->
+    <div class="card">
+      <div class="card-title mb14">📚 مركز التدريب – دورات متخصصة</div>
+
+      ${activeCourses && activeCourses.length > 0 ? `
+        <div class="mb14" style="background:rgba(68,138,255,.08);border:1px solid rgba(68,138,255,.25);border-radius:var(--r2);padding:12px">
+          <div style="font-size:.83rem;font-weight:700;color:var(--blue);margin-bottom:8px">📖 دوراتك النشطة</div>
+          ${activeCourses.map(pc => `
+            <div class="flex just-b items-c" style="padding:6px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:.83rem">${pc.courses?.image} ${pc.courses?.name}</span>
+              <span class="badge badge-b">⏰ ${timeLeft(pc.ends_at) || 'جاهزة!'}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <div class="g3" id="courses-grid">
+        ${courses.map(c => {
+          const locked = player.level < c.level_required;
+          const alreadyIn = activeCourses?.some(pc => pc.course_id === c.id);
+          const gains = [];
+          if (c.strength_gain) gains.push(`💪 +${c.strength_gain}`);
+          if (c.fitness_gain) gains.push(`🏃 +${c.fitness_gain}`);
+          if (c.defense_gain) gains.push(`🛡️ +${c.defense_gain}`);
+          if (c.labor_gain) gains.push(`🔧 +${c.labor_gain}`);
+          if (c.intelligence_gain) gains.push(`🧠 +${c.intelligence_gain}`);
+          return `
+            <div class="crime-card${locked ? ' locked' : ''}" style="cursor:${locked||alreadyIn?'default':'pointer'}">
+              <div class="ci">${c.image}</div>
+              <div class="cn">${c.name}</div>
+              <div class="cd">${c.description}</div>
+              <div class="crime-rewards mb10">
+                <span class="badge badge-r">💰 ${$$(c.cost)}</span>
+                <span class="badge badge-b">📅 ${c.duration_days} يوم</span>
+              </div>
+              <div class="crime-rewards mb10">
+                ${gains.map(g=>`<span class="badge badge-g">${g}</span>`).join('')}
+              </div>
+              ${locked ? `<div style="font-size:.75rem;color:var(--orange)">🔒 يتطلب مستوى ${c.level_required}</div>` :
+                alreadyIn ? `<div style="font-size:.75rem;color:var(--blue)">✅ مسجّل بالفعل</div>` :
+                `<button class="btn btn-b btn-sm btn-full" onclick="enrollCourse('${c.id}','${c.name}',${c.cost})">التسجيل</button>`}
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+async function doTrain() {
+  const stat = document.getElementById('train-stat').value;
+  const energy = parseInt(document.getElementById('train-energy').value) || 10;
+
+  const btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = '⏳ جاري التدريب...';
+
+  const { data, error } = await supabase.rpc('train_stat', { p_stat: stat, p_energy: energy });
+
+  if (error || !data?.success) {
+    toast(data?.message || error?.message || 'حدث خطأ', 'e');
+    btn.disabled = false; btn.textContent = '💪 ابدأ التدريب';
+    return;
+  }
+
+  sfxTrain();
+  toast(`${data.message} 💪`, 's');
+  await init();
+}
+
+async function enrollCourse(courseId, name, cost) {
+  confirm(`هل تريد التسجيل في دورة "${name}" بتكلفة ${$$(cost)}؟`, async () => {
+    if (player.cash < cost) { toast('رصيدك غير كافٍ', 'e'); return; }
+
+    const { data: courseData } = await supabase.from('courses').select('duration_days').eq('id', courseId).single();
+    const ends = new Date(Date.now() + courseData.duration_days * 86400000).toISOString();
+
+    // خصم المال
+    await supabase.from('players').update({ cash: player.cash - cost }).eq('id', player.id);
+    await supabase.from('player_courses').insert({ player_id: player.id, course_id: courseId, ends_at: ends });
+
+    toast(`تم التسجيل في دورة ${name}! ستنتهي خلال ${courseData.duration_days} يوم`, 's', 4000);
+    await init();
+  });
+}
+
+init();
+</script>
+</body>
+</html>

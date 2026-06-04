@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>قاتل مأجور – دخول</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
+.auth-page{width:100%;display:flex;align-items:center;justify-content:center;padding:20px;position:relative}
+.bg-anim{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.bg-anim div{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(220,20,60,.08),transparent 70%);animation:bgFloat linear infinite}
+@keyframes bgFloat{0%{transform:translate(-50%,-50%) scale(.8);opacity:0}30%{opacity:1}100%{transform:translate(-50%,calc(-50% - 80vh)) scale(1.4);opacity:0}}
+</style>
+</head>
+<body>
+<div class="bg-anim" id="bg-anim"></div>
+
+<div class="auth-page" style="position:relative;z-index:1">
+<div class="auth-card">
+
+  <div class="auth-logo">
+    <div class="auth-logo-text">🎯 قاتل مأجور</div>
+  </div>
+  <div class="auth-tagline">عالم الجريمة والسلطة ينتظرك</div>
+
+  <div class="auth-tabs">
+    <div class="auth-tab active" id="tab-login" onclick="showTab('login')">تسجيل الدخول</div>
+    <div class="auth-tab" id="tab-register" onclick="showTab('register')">إنشاء حساب</div>
+  </div>
+
+  <!-- دخول -->
+  <div id="form-login">
+    <div class="fg">
+      <label class="fl">البريد الإلكتروني</label>
+      <input type="email" class="fc" id="l-email" placeholder="example@email.com" autocomplete="email">
+    </div>
+    <div class="fg">
+      <label class="fl">كلمة المرور</label>
+      <input type="password" class="fc" id="l-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div id="l-err" style="display:none;margin-bottom:10px"></div>
+    <button class="btn btn-r btn-full btn-lg" id="l-btn" onclick="doLogin()">دخول 🚀</button>
+  </div>
+
+  <!-- تسجيل -->
+  <div id="form-register" style="display:none">
+    <div class="fg">
+      <label class="fl">اسم اللاعب</label>
+      <input type="text" class="fc" id="r-name" placeholder="اختر اسماً فريداً" maxlength="20" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label class="fl">البريد الإلكتروني</label>
+      <input type="email" class="fc" id="r-email" placeholder="example@email.com" autocomplete="email">
+    </div>
+    <div class="fg">
+      <label class="fl">كلمة المرور</label>
+      <input type="password" class="fc" id="r-pass" placeholder="8 أحرف على الأقل" autocomplete="new-password">
+    </div>
+    <div id="r-err" style="display:none;margin-bottom:10px"></div>
+    <button class="btn btn-r btn-full btn-lg" id="r-btn" onclick="doRegister()">إنشاء حساب 🎯</button>
+  </div>
+
+  <div style="margin-top:18px;text-align:center;font-size:.75rem;color:var(--muted)">
+    لعبة مجانية تماماً · متعددة اللاعبين · عربي 100%
+  </div>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script>
+// خلفية متحركة
+const bg = document.getElementById('bg-anim');
+for (let i = 0; i < 6; i++) {
+  const d = document.createElement('div');
+  const s = 200 + Math.random() * 300;
+  d.style.cssText = `width:${s}px;height:${s}px;left:${Math.random()*100}%;top:${100+Math.random()*50}%;animation-duration:${8+Math.random()*12}s;animation-delay:${-Math.random()*10}s`;
+  bg.appendChild(d);
+}
+
+// التحقق من جلسة موجودة
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) window.location.href = 'home.html';
+})();
+
+function showTab(tab) {
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  document.getElementById('form-login').style.display = tab === 'login' ? '' : 'none';
+  document.getElementById('form-register').style.display = tab === 'register' ? '' : 'none';
+}
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.style.display = '';
+  el.innerHTML = `<div class="alert-error" style="background:rgba(220,20,60,.1);color:var(--red);border:1px solid rgba(220,20,60,.3);padding:9px 12px;border-radius:var(--r2);font-size:.83rem">❌ ${msg}</div>`;
+}
+
+async function doLogin() {
+  const email = document.getElementById('l-email').value.trim();
+  const pass = document.getElementById('l-pass').value;
+  if (!email || !pass) { showErr('l-err', 'أدخل البريد وكلمة المرور'); return; }
+  const btn = document.getElementById('l-btn');
+  btn.disabled = true; btn.textContent = 'جاري الدخول...';
+  const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    showErr('l-err', error.message.includes('Invalid') ? 'بريد إلكتروني أو كلمة مرور خاطئة' : error.message);
+    btn.disabled = false; btn.textContent = 'دخول 🚀';
+  } else {
+    btn.textContent = '✅ تم الدخول!';
+    window.location.href = 'home.html';
+  }
+}
+
+async function doRegister() {
+  const name = document.getElementById('r-name').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const pass = document.getElementById('r-pass').value;
+  if (!name || !email || !pass) { showErr('r-err', 'أكمل جميع الحقول'); return; }
+  if (name.length < 3) { showErr('r-err', 'اسم اللاعب يجب أن يكون 3 أحرف على الأقل'); return; }
+  if (!/^[a-zA-Z0-9_؀-ۿ]+$/.test(name)) { showErr('r-err', 'اسم اللاعب يحتوي على رموز غير مسموحة'); return; }
+  if (pass.length < 8) { showErr('r-err', 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'); return; }
+
+  // التحقق من الاسم
+  const { data: existing } = await supabase.from('players').select('id').eq('username', name).maybeSingle();
+  if (existing) { showErr('r-err', 'اسم اللاعب مستخدم بالفعل'); return; }
+
+  const btn = document.getElementById('r-btn');
+  btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
+
+  const { error } = await supabase.auth.signUp({
+    email, password: pass,
+    options: { data: { username: name } }
+  });
+
+  if (error) {
+    showErr('r-err', error.message.includes('already') ? 'البريد الإلكتروني مستخدم بالفعل' : error.message);
+    btn.disabled = false; btn.textContent = 'إنشاء حساب 🎯';
+  } else {
+    btn.textContent = '✅ تم إنشاء الحساب!';
+    toast('مرحباً بك! جاري الدخول...', 's');
+    setTimeout(() => window.location.href = 'home.html', 1200);
+  }
+}
+
+// Enter key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('form-login').style.display !== 'none') doLogin();
+    else doRegister();
+  }
+});
+</script>
+</body>
+</html>

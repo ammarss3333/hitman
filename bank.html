@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>البنك – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('bank');
+  if (!player) return;
+
+  // تطبيق الفائدة
+  await supabase.rpc('apply_bank_interest');
+  const fresh = await loadPlayer(true);
+  player = fresh;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🏦</div>
+      <div>
+        <div class="page-title">بنك <em>المدينة</em></div>
+        <div class="page-sub">احفظ أموالك من اللصوص وراكم الثروة</div>
+      </div>
+    </div>
+
+    ${!player.has_bank_account ? `
+    <!-- فتح حساب -->
+    <div class="card" style="max-width:480px;margin:0 auto;text-align:center">
+      <div style="font-size:4rem;margin-bottom:16px">🏦</div>
+      <div style="font-size:1.2rem;font-weight:900;margin-bottom:8px">افتح حسابك البنكي</div>
+      <div class="text-2 mb16" style="font-size:.875rem;line-height:1.6">
+        • احمِ نقودك من السرقة<br>
+        • اربح <strong style="color:var(--green)">2% فائدة يومياً</strong><br>
+        • التكلفة: <strong style="color:var(--gold)">$15,000</strong> مرة واحدة فقط
+      </div>
+      <div class="mb16" style="background:var(--bg2);padding:12px;border-radius:var(--r2)">
+        <div class="text-2" style="font-size:.8rem">رصيدك الحالي</div>
+        <div style="font-size:1.5rem;font-weight:900;color:var(--gold)">${$$(player.cash)}</div>
+      </div>
+      <button class="btn btn-gold btn-lg btn-full" onclick="openAccount()"
+        ${player.cash < 15000 ? 'disabled' : ''}>
+        ${player.cash < 15000 ? `تحتاج ${$$(15000 - player.cash)} إضافية` : '🏦 افتح الحساب الآن ($15,000)'}
+      </button>
+    </div>
+    ` : `
+
+    <!-- رصيد البنك -->
+    <div class="g2 mb16">
+      <div class="card" style="text-align:center;border-color:rgba(255,215,0,.25);background:rgba(255,215,0,.04)">
+        <div style="font-size:.8rem;color:var(--text2);margin-bottom:4px">💵 النقد (عرضة للسرقة)</div>
+        <div style="font-size:1.8rem;font-weight:900;color:var(--gold)">${$$(player.cash)}</div>
+      </div>
+      <div class="card" style="text-align:center;border-color:rgba(0,230,118,.25);background:rgba(0,230,118,.04)">
+        <div style="font-size:.8rem;color:var(--text2);margin-bottom:4px">🏦 في البنك (آمن + 2% يومياً)</div>
+        <div style="font-size:1.8rem;font-weight:900;color:var(--green)">${$$(player.bank_balance)}</div>
+      </div>
+    </div>
+
+    <div class="g2 mb16">
+      <!-- إيداع -->
+      <div class="card">
+        <div class="card-title mb14">⬆️ إيداع</div>
+        <div class="fg">
+          <label class="fl">المبلغ</label>
+          <input type="number" class="fc" id="dep-amount" placeholder="أدخل المبلغ" min="1" max="${player.cash}">
+          <div style="font-size:.72rem;color:var(--text2);margin-top:4px">رسوم الإيداع: 15% (حد أقصى $3,000)</div>
+        </div>
+        <div class="flex flex-wrap gap6 mb12">
+          ${[1000,5000,10000,50000].map(v=>`<button class="btn btn-ghost btn-sm" onclick="document.getElementById('dep-amount').value=${v}">${$$(v)}</button>`).join('')}
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('dep-amount').value=${player.cash}">الكل</button>
+        </div>
+        <button class="btn btn-g btn-full" onclick="doDeposit()">إيداع</button>
+      </div>
+
+      <!-- سحب -->
+      <div class="card">
+        <div class="card-title mb14">⬇️ سحب</div>
+        <div class="fg">
+          <label class="fl">المبلغ</label>
+          <input type="number" class="fc" id="wth-amount" placeholder="أدخل المبلغ" min="1" max="${player.bank_balance}">
+          <div style="font-size:.72rem;color:var(--text2);margin-top:4px">لا توجد رسوم على السحب</div>
+        </div>
+        <div class="flex flex-wrap gap6 mb12">
+          ${[1000,5000,10000,50000].map(v=>`<button class="btn btn-ghost btn-sm" onclick="document.getElementById('wth-amount').value=${Math.min(v,player.bank_balance)}">${$$(v)}</button>`).join('')}
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('wth-amount').value=${player.bank_balance}">الكل</button>
+        </div>
+        <button class="btn btn-r btn-full" onclick="doWithdraw()">سحب</button>
+      </div>
+    </div>
+
+    <!-- حاسبة الفائدة -->
+    <div class="card">
+      <div class="card-title mb14">📈 حاسبة الفائدة</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center">
+        ${[1,7,30].map(d=>`
+          <div style="background:var(--bg2);padding:12px;border-radius:var(--r2)">
+            <div class="text-2" style="font-size:.75rem">${d} ${d===1?'يوم':'أيام'}</div>
+            <div style="font-size:1.1rem;font-weight:900;color:var(--green)">
+              +${$$(Math.floor(player.bank_balance * 0.02 * d))}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    `}
+  `;
+}
+
+async function openAccount() {
+  confirm('هل تريد فتح حساب بنكي بتكلفة $15,000؟', async () => {
+    const { data, error } = await supabase.rpc('open_bank_account');
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) await init();
+  });
+}
+
+async function doDeposit() {
+  const amount = parseInt(document.getElementById('dep-amount').value);
+  if (!amount || amount <= 0) { toast('أدخل مبلغاً صحيحاً', 'w'); return; }
+  const fee = Math.min(Math.floor(amount * 0.15), 3000);
+  confirm(`إيداع ${$$(amount)} (رسوم ${$$(fee)} → يُودَع ${$$(amount - fee)})؟`, async () => {
+    const { data, error } = await supabase.rpc('bank_deposit', { p_amount: amount });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) await init();
+  });
+}
+
+async function doWithdraw() {
+  const amount = parseInt(document.getElementById('wth-amount').value);
+  if (!amount || amount <= 0) { toast('أدخل مبلغاً صحيحاً', 'w'); return; }
+  confirm(`سحب ${$$(amount)} من البنك؟`, async () => {
+    const { data, error } = await supabase.rpc('bank_withdraw', { p_amount: amount });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) await init();
+  });
+}
+
+init();
+</script>
+</body>
+</html>

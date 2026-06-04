@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>العصابات – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('gangs');
+  if (!player) return;
+
+  const [{ data: allGangs }, { data: myGangData }] = await Promise.all([
+    supabase.from('gangs').select('*, gang_members(count)').order('respect', { ascending: false }).limit(20),
+    player.gang_id ? supabase.from('gangs').select('*, gang_members(*, players(username, level, avatar))').eq('id', player.gang_id).single() : { data: null }
+  ]);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">💀</div>
+      <div>
+        <div class="page-title">عالم <em>العصابات</em></div>
+        <div class="page-sub">وحدك ستسقط – مع العصابة ستسود</div>
+      </div>
+    </div>
+
+    ${myGangData ? renderMyGang(myGangData) : renderNoGang()}
+
+    <!-- كل العصابات -->
+    <div class="card mt16">
+      <div class="card-hdr">
+        <div class="card-title">💀 أقوى العصابات</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${allGangs?.map((g, i) => {
+          const memberCount = g.gang_members?.[0]?.count || 0;
+          const isMine = g.id === player.gang_id;
+          return `
+            <div class="rank-card" onclick="viewGang('${g.id}')">
+              <div class="rank-num ${i<3?['gold','silver','bronze'][i]:''}">${i+1}</div>
+              <div class="rank-av">${g.logo}</div>
+              <div class="rank-info">
+                <div class="rank-name">${g.name} <span style="font-size:.72rem;color:var(--red)">[${g.tag}]</span>
+                  ${isMine ? '<span class="badge badge-g" style="font-size:.65rem;margin-right:4px">عصابتي</span>' : ''}
+                </div>
+                <div class="rank-detail">🌆 ${cityName(g.city)} · 👥 ${memberCount}/${g.max_members} · مستوى ${g.level}</div>
+              </div>
+              <div class="rank-val">⭐ ${num(g.respect)}</div>
+            </div>`;
+        }).join('') || '<div class="empty"><div class="ei">💀</div><p>لا توجد عصابات بعد</p></div>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderNoGang() {
+  return `
+    <div class="g2">
+      <!-- إنشاء عصابة -->
+      <div class="card">
+        <div class="card-title mb14">⚡ أنشئ عصابتك</div>
+        <div class="fg"><label class="fl">اسم العصابة</label><input type="text" class="fc" id="g-name" placeholder="اختر اسماً قوياً" maxlength="30"></div>
+        <div class="fg"><label class="fl">الشعار (كود اختصار 3-5 أحرف)</label><input type="text" class="fc" id="g-tag" placeholder="مثال: MAFIA" maxlength="5"></div>
+        <div class="fg"><label class="fl">وصف العصابة</label><textarea class="fc" id="g-desc" placeholder="اكتب وصفاً مثيراً..." rows="2"></textarea></div>
+        <div class="flex flex-wrap gap6 mb12">
+          ${['😈','💀','🔫','🗡️','🐍','🦁','👁️','⚡','🔥','💣'].map(e=>`<button class="btn btn-ghost btn-sm" onclick="setLogo('${e}')" id="logo-${e}">${e}</button>`).join('')}
+        </div>
+        <input type="hidden" id="g-logo" value="💀">
+        <div style="font-size:.75rem;color:var(--text2);margin-bottom:12px">
+          التكلفة: <span style="color:var(--gold)">$50,000</span> · رصيدك: <span style="color:${player.cash>=50000?'var(--green)':'var(--red)'}">${$$(player.cash)}</span>
+        </div>
+        <button class="btn btn-r btn-full" onclick="createGang()" ${player.cash<50000?'disabled':''}>
+          ${player.cash<50000?`تحتاج ${$$(50000-player.cash)} إضافية`:'💀 إنشاء العصابة'}
+        </button>
+      </div>
+
+      <!-- الانضمام -->
+      <div class="card">
+        <div class="card-title mb14">🤝 انضم لعصابة</div>
+        <div class="text-2 mb12" style="font-size:.83rem;line-height:1.6">
+          ابحث عن عصابة وانضم إليها من قائمة العصابات أدناه.<br>
+          انقر على أي عصابة لعرض تفاصيلها والانضمام.
+        </div>
+        <div style="background:var(--bg2);padding:14px;border-radius:var(--r2)">
+          <div style="font-size:.8rem;font-weight:700;margin-bottom:8px">مميزات الانضمام:</div>
+          ${['🏋️ جرائم منظمة جماعية','🔫 مستودع أسلحة مشترك','💰 سرقة جماعية للعدو','🏆 تصنيف بين العصابات','🤝 تحالفات وصداقات'].map(b=>`<div style="font-size:.78rem;color:var(--text2);padding:3px 0">${b}</div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderMyGang(gang) {
+  const isLeader = gang.leader_id === player.id;
+  const members = gang.gang_members || [];
+  return `
+    <div class="card" style="border-color:rgba(220,20,60,.3)">
+      <div class="card-hdr">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:2.5rem">${gang.logo}</div>
+          <div>
+            <div style="font-size:1.2rem;font-weight:900">${gang.name}</div>
+            <div class="flex flex-wrap gap6 mt6">
+              <span class="badge badge-r">[${gang.tag}]</span>
+              <span class="badge badge-gold">مستوى ${gang.level}</span>
+              <span class="badge badge-b">⭐ ${num(gang.respect)} احترام</span>
+              <span class="badge badge-gray">🌆 ${cityName(gang.city)}</span>
+            </div>
+          </div>
+        </div>
+        ${isLeader ? `<div><button class="btn btn-ghost btn-sm" onclick="showGangSettings()">⚙️ الإعدادات</button></div>` :
+          `<button class="btn btn-outline btn-sm" onclick="leaveGang()">مغادرة</button>`}
+      </div>
+
+      ${gang.description ? `<div class="text-2 mb14" style="font-size:.83rem">${gang.description}</div>` : ''}
+
+      <div class="g4 mb14">
+        <div class="stat-c"><div class="si">👥</div><div class="sv">${members.length}/${gang.max_members}</div><div class="sl">الأعضاء</div></div>
+        <div class="stat-c"><div class="si">💰</div><div class="sv" style="font-size:.9rem">${$$(gang.cash)}</div><div class="sl">خزينة العصابة</div></div>
+        <div class="stat-c"><div class="si">⭐</div><div class="sv">${num(gang.respect)}</div><div class="sl">الاحترام</div></div>
+        <div class="stat-c"><div class="si">🏆</div><div class="sv">${gang.level}</div><div class="sl">المستوى</div></div>
+      </div>
+
+      <!-- الأعضاء -->
+      <div class="card-title mb10">👥 الأعضاء</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${members.map(m => `
+          <div class="flex items-c gap10" style="padding:8px;background:var(--bg2);border-radius:var(--r2)">
+            <div style="font-size:1.3rem">${m.players?.avatar || '👤'}</div>
+            <div style="flex:1">
+              <div style="font-size:.875rem;font-weight:700">${m.players?.username}</div>
+              <div style="font-size:.72rem;color:var(--text2)">مستوى ${m.players?.level} · ${m.role === 'leader' ? '👑 قائد' : m.role === 'vice_leader' ? '🔱 نائب' : '👤 عضو'}</div>
+            </div>
+            <a href="profile.html?id=${m.player_id}" class="btn btn-ghost btn-sm">ملف</a>
+            ${isLeader && m.player_id !== player.id ? `<button class="btn btn-outline btn-sm" onclick="kickMember('${m.player_id}','${m.players?.username}')">طرد</button>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- تبرع للعصابة -->
+      ${gang.leader_id !== player.id || true ? `
+        <div class="mt14">
+          <div class="card-title mb10">💰 تبرع للعصابة</div>
+          <div class="flex gap8">
+            <input type="number" class="fc" id="donate-amount" placeholder="المبلغ" min="1">
+            <button class="btn btn-gold" onclick="donateToGang()">تبرع</button>
+          </div>
+        </div>
+      ` : ''}
+    </div>`;
+}
+
+async function createGang() {
+  const name = document.getElementById('g-name').value.trim();
+  const tag = document.getElementById('g-tag').value.trim();
+  const desc = document.getElementById('g-desc').value.trim();
+  const logo = document.getElementById('g-logo').value;
+  if (!name || !tag) { toast('أدخل اسم وشعار العصابة', 'w'); return; }
+  const { data, error } = await supabase.rpc('create_gang', { p_name: name, p_tag: tag, p_desc: desc });
+  if (data?.success) {
+    await supabase.from('gangs').update({ logo }).eq('id', data.gang_id);
+    toast(data.message, 's', 5000);
+    await init();
+  } else {
+    toast(data?.message || error?.message, 'e');
+  }
+}
+
+function setLogo(logo) {
+  document.getElementById('g-logo').value = logo;
+  document.querySelectorAll('[id^="logo-"]').forEach(b => b.style.background = '');
+  document.getElementById(`logo-${logo}`).style.background = 'var(--red)';
+}
+
+async function viewGang(gangId) {
+  const { data: gang } = await supabase.from('gangs').select('*, gang_members(*, players(username,level,avatar))').eq('id', gangId).single();
+  const members = gang.gang_members || [];
+  const isMine = gangId === player.gang_id;
+  openModal(`
+    <div class="modal-hdr">
+      <span class="modal-title">${gang.logo} ${gang.name} [${gang.tag}]</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="flex flex-wrap gap6 mb12">
+      <span class="badge badge-gold">مستوى ${gang.level}</span>
+      <span class="badge badge-b">⭐ ${num(gang.respect)} احترام</span>
+      <span class="badge badge-gray">👥 ${members.length}/${gang.max_members}</span>
+      <span class="badge badge-gray">🌆 ${cityName(gang.city)}</span>
+    </div>
+    ${gang.description ? `<p class="text-2 mb12" style="font-size:.83rem">${gang.description}</p>` : ''}
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+      ${members.slice(0,5).map(m=>`
+        <div class="flex items-c gap8" style="padding:6px;background:var(--bg2);border-radius:var(--r2)">
+          <span>${m.players?.avatar}</span>
+          <span style="font-size:.83rem;font-weight:600">${m.players?.username}</span>
+          <span style="font-size:.72rem;color:var(--text2)">مستوى ${m.players?.level}</span>
+          ${m.role==='leader'?'<span class="badge badge-gold">👑</span>':''}
+        </div>
+      `).join('')}
+    </div>
+    ${!isMine && !player.gang_id ? `
+      <button class="btn btn-r btn-full" onclick="joinGang('${gangId}','${gang.name}')">🤝 الانضمام للعصابة</button>
+    ` : isMine ? '<div class="text-c text-2 text-sm">هذه عصابتك</div>' : '<div class="text-c text-2 text-sm">غادر عصابتك أولاً للانضمام</div>'}
+  `);
+}
+
+async function joinGang(gangId, name) {
+  closeModal();
+  confirm(`هل تريد الانضمام لعصابة "${name}"؟`, async () => {
+    const { data, error } = await supabase.rpc('join_gang', { p_gang_id: gangId });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) await init();
+  });
+}
+
+async function leaveGang() {
+  confirm('هل تريد مغادرة العصابة؟', async () => {
+    const { data, error } = await supabase.rpc('leave_gang');
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) await init();
+  });
+}
+
+async function donateToGang() {
+  const amount = parseInt(document.getElementById('donate-amount').value);
+  if (!amount || amount <= 0) { toast('أدخل مبلغاً صحيحاً', 'w'); return; }
+  if (player.cash < amount) { toast('رصيدك غير كافٍ', 'e'); return; }
+  await supabase.from('players').update({ cash: player.cash - amount }).eq('id', player.id);
+  await supabase.from('gangs').update({ cash: supabase.rpc }).eq('id', player.gang_id);
+  // بسيطة: تحديث مباشر
+  const { data: g } = await supabase.from('gangs').select('cash').eq('id', player.gang_id).single();
+  await supabase.from('gangs').update({ cash: (g.cash || 0) + amount }).eq('id', player.gang_id);
+  toast(`تبرعت بـ ${$$(amount)} للعصابة!`, 's');
+  await init();
+}
+
+async function kickMember(memberId, name) {
+  confirm(`هل تريد طرد "${name}" من العصابة؟`, async () => {
+    await supabase.from('gang_members').delete().match({ gang_id: player.gang_id, player_id: memberId });
+    await supabase.from('players').update({ gang_id: null }).eq('id', memberId);
+    toast(`تم طرد ${name}`, 'i');
+    await init();
+  });
+}
+
+init();
+</script>
+</body>
+</html>

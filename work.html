@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>العمل – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('work');
+  if (!player) return;
+
+  const { data: jobs } = await supabase.from('jobs').select('*').order('base_salary');
+
+  const now = new Date();
+  let hoursLeft = null;
+  if (player.last_salary) {
+    const diff = (now - new Date(player.last_salary)) / 3600000;
+    hoursLeft = Math.max(0, 24 - diff);
+  }
+
+  const currentJob = jobs?.find(j => j.id === player.job_id);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">💼</div>
+      <div>
+        <div class="page-title">مركز <em>التوظيف</em></div>
+        <div class="page-sub">العمل يبني المستقبل – ارتقِ في سلّم المهنة</div>
+      </div>
+    </div>
+
+    <!-- وظيفتك الحالية -->
+    ${currentJob ? `
+    <div class="card mb16" style="border-color:rgba(0,230,118,.25);background:rgba(0,230,118,.05)">
+      <div class="card-hdr">
+        <div class="card-title">✅ وظيفتك الحالية</div>
+        <button class="btn btn-ghost btn-sm" onclick="quitJob()">استقالة</button>
+      </div>
+      <div class="flex items-c gap14">
+        <div style="font-size:2.5rem">${currentJob.image}</div>
+        <div style="flex:1">
+          <div style="font-size:1rem;font-weight:900">${currentJob.name}</div>
+          <div style="font-size:.8rem;color:var(--text2);margin-top:3px">${currentJob.description}</div>
+          <div class="flex flex-wrap gap8 mt8">
+            <span class="badge badge-gold">💰 ${$$(currentJob.base_salary * player.job_level)} / يوم</span>
+            <span class="badge badge-b">📊 درجة ${player.job_level}/${currentJob.max_level}</span>
+          </div>
+        </div>
+      </div>
+      <div class="mt14">
+        ${hoursLeft === null || hoursLeft === 0 ?
+          `<button class="btn btn-g btn-full" onclick="collectSalary()">💰 قبض الراتب (${$$(currentJob.base_salary * player.job_level)})</button>` :
+          `<button class="btn btn-ghost btn-full" disabled>⏰ الراتب القادم خلال ${hoursLeft.toFixed(1)} ساعة</button>`
+        }
+      </div>
+      ${player.job_level < currentJob.max_level ? `
+        <div class="mt8">
+          <button class="btn btn-b btn-full" onclick="requestPromotion()">📈 طلب ترقية (تتطلب إحصائيات أعلى)</button>
+        </div>
+      ` : `<div class="mt8 text-c text-2 text-sm">🏆 وصلت للدرجة القصوى في هذه الوظيفة</div>`}
+    </div>
+    ` : `
+    <div class="card mb16" style="border-color:rgba(255,152,0,.25);background:rgba(255,152,0,.05)">
+      <div class="flex items-c gap10">
+        <span style="font-size:1.5rem">⚠️</span>
+        <div>
+          <div class="bold" style="color:var(--orange)">ليس لديك وظيفة</div>
+          <div class="text-2" style="font-size:.8rem">اختر وظيفة مناسبة من القائمة أدناه</div>
+        </div>
+      </div>
+    </div>
+    `}
+
+    <!-- قائمة الوظائف -->
+    <div class="card">
+      <div class="card-title mb14">🏢 الوظائف المتاحة</div>
+      <div class="g2" id="jobs-grid">
+        ${jobs.map(j => {
+          const meetsStr = player.strength >= j.strength_req;
+          const meetsInt = player.intelligence >= j.intelligence_req;
+          const meetsLab = player.labor >= j.labor_req;
+          const canApply = meetsStr && meetsInt && meetsLab;
+          const isCurrent = player.job_id === j.id;
+          const reqs = [];
+          if (j.strength_req) reqs.push(`💪 قوة ${j.strength_req}`);
+          if (j.intelligence_req) reqs.push(`🧠 ذكاء ${j.intelligence_req}`);
+          if (j.labor_req) reqs.push(`🔧 عمالة ${j.labor_req}`);
+          return `
+            <div class="card" style="border-color:${isCurrent?'rgba(0,230,118,.35)':'var(--border)'};background:${isCurrent?'rgba(0,230,118,.04)':'var(--card)'}">
+              <div class="flex items-c gap10 mb10">
+                <span style="font-size:2rem">${j.image}</span>
+                <div>
+                  <div style="font-weight:700;font-size:.95rem">${j.name}</div>
+                  <div class="text-2" style="font-size:.75rem">${j.description}</div>
+                </div>
+                ${isCurrent ? '<span class="badge badge-g">✅ حالياً</span>' : ''}
+              </div>
+              <div class="flex flex-wrap gap6 mb10">
+                <span class="badge badge-gold">💰 ${$$(j.base_salary)}/يوم</span>
+                <span class="badge badge-b">⭐ +${j.exp_per_day} خبرة</span>
+              </div>
+              ${reqs.length > 0 ? `
+                <div class="mb10">
+                  <div style="font-size:.72rem;color:var(--text2);margin-bottom:5px">المتطلبات:</div>
+                  <div class="flex flex-wrap gap5">
+                    ${j.strength_req?`<span class="badge ${player.strength>=j.strength_req?'badge-g':'badge-r'}">💪 ${j.strength_req}</span>`:''}
+                    ${j.intelligence_req?`<span class="badge ${player.intelligence>=j.intelligence_req?'badge-g':'badge-r'}">🧠 ${j.intelligence_req}</span>`:''}
+                    ${j.labor_req?`<span class="badge ${player.labor>=j.labor_req?'badge-g':'badge-r'}">🔧 ${j.labor_req}</span>`:''}
+                  </div>
+                </div>
+              ` : '<div class="mb10 text-sm text-2">لا متطلبات خاصة</div>'}
+              ${isCurrent ? '' :
+                canApply ?
+                  `<button class="btn btn-r btn-full btn-sm" onclick="applyJob('${j.id}','${j.name}')">التقدم للوظيفة</button>` :
+                  `<button class="btn btn-ghost btn-full btn-sm" disabled>غير مؤهل بعد</button>`
+              }
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+async function collectSalary() {
+  const btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = '⏳ جاري الصرف...';
+  const { data, error } = await supabase.rpc('collect_salary');
+  if (error || !data?.success) {
+    toast(data?.message || 'حدث خطأ', 'e');
+    await init();
+  } else {
+    sfxSalary();
+    toast(data.message, 's', 4000);
+    await init();
+  }
+}
+
+async function applyJob(jobId, jobName) {
+  confirm(`هل تريد التقدم لوظيفة "${jobName}"؟`, async () => {
+    const { data, error } = await supabase.rpc('apply_for_job', { p_job_id: jobId });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) await init();
+  });
+}
+
+async function quitJob() {
+  confirm('هل تريد الاستقالة من وظيفتك؟', async () => {
+    await supabase.from('players').update({ job_id: null, job_level: 1, last_salary: null }).eq('id', player.id);
+    toast('تم تقديم الاستقالة', 'i');
+    await init();
+  });
+}
+
+async function requestPromotion() {
+  if (!player.job_id) return;
+  const { data: job } = await supabase.from('jobs').select('*').eq('id', player.job_id).single();
+  const neededStr = job.strength_req * (player.job_level + 1);
+  const neededInt = job.intelligence_req * (player.job_level + 1);
+  const neededLab = job.labor_req * (player.job_level + 1);
+
+  if (player.strength < neededStr || player.intelligence < neededInt || player.labor < neededLab) {
+    toast(`لا تستوفي متطلبات الترقية بعد (قوة ${neededStr}، ذكاء ${neededInt}، عمالة ${neededLab})`, 'w', 5000);
+    return;
+  }
+
+  await supabase.from('players').update({ job_level: player.job_level + 1 }).eq('id', player.id);
+  toast(`🎉 تهانينا! ترقيت إلى الدرجة ${player.job_level + 1} في ${job.name}!`, 's', 5000);
+  await init();
+}
+
+init();
+</script>
+</body>
+</html>

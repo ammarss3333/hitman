@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>قاعة المشاهير – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+let player, activeBoard = 'level';
+
+async function init() {
+  player = await buildNav('leaderboard');
+  if (!player) return;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🏆</div>
+      <div>
+        <div class="page-title">قاعة <em>المشاهير</em></div>
+        <div class="page-sub">أقوى اللاعبين في عالم الجريمة</div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap6 mb16">
+      ${[
+        ['level','المستوى','🎯'],
+        ['strength','القوة','💪'],
+        ['cash','الأثرياء','💰'],
+      ].map(([t,l,i])=>`
+        <button class="btn ${activeBoard===t?'btn-r':'btn-ghost'}" onclick="loadBoard('${t}')">
+          ${i} ${l}
+        </button>`).join('')}
+    </div>
+
+    <div id="board-container"></div>
+  `;
+
+  loadBoard(activeBoard);
+}
+
+async function loadBoard(type) {
+  activeBoard = type;
+  document.querySelectorAll('.main .btn').forEach(b => {
+    const t = b.textContent.trim();
+    b.className = `btn ${(type==='level'&&t.includes('المستوى'))||(type==='strength'&&t.includes('القوة'))||(type==='cash'&&t.includes('الأثرياء'))?'btn-r':'btn-ghost'}`;
+  });
+
+  const col = type;
+  const { data: players } = await supabase.from('players')
+    .select('id, username, avatar, level, strength, cash, exp, city, gang_id, gangs(name,tag)')
+    .order(col, { ascending: false })
+    .limit(50);
+
+  const myRank = players?.findIndex(p => p.id === player.id) + 1;
+
+  const container = document.getElementById('board-container');
+  container.innerHTML = `
+    ${myRank > 0 ? `
+      <div class="card mb12" style="border-color:rgba(255,215,0,.35);background:rgba(255,215,0,.05)">
+        <div class="flex items-c gap10">
+          <div class="rank-num gold" style="font-size:1.2rem">#${myRank}</div>
+          <div>
+            <div style="font-weight:700">ترتيبك الحالي</div>
+            <div style="font-size:.8rem;color:var(--text2)">${type==='level'?`مستوى ${player.level}`:type==='strength'?`قوة ${player.strength}`:`${$$(player.cash)}`}</div>
+          </div>
+        </div>
+      </div>
+    ` : ''}
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${players?.map((p, i) => {
+        const isSelf = p.id === player.id;
+        const val = type==='level'?`مستوى ${p.level}`:type==='strength'?`💪 ${p.strength}`:`💰 ${$$(p.cash)}`;
+        return `
+          <div class="rank-card${isSelf?' glow-anim':''}" onclick="window.location.href='profile.html?id=${p.id}'"
+            style="${isSelf?'border-color:rgba(255,215,0,.4);background:rgba(255,215,0,.04)':''}">
+            <div class="rank-num ${i<3?['gold','silver','bronze'][i]:''}">${i+1}</div>
+            <div class="rank-av">${p.avatar}</div>
+            <div class="rank-info">
+              <div class="rank-name">
+                ${p.username}
+                ${isSelf ? '<span class="badge badge-gold" style="font-size:.6rem">أنت</span>' : ''}
+              </div>
+              <div class="rank-detail">
+                ${p.gangs?`💀 ${p.gangs.name} · `:''}🌆 ${cityName(p.city)}
+              </div>
+            </div>
+            <div class="rank-val">${val}</div>
+          </div>`;
+      }).join('') || '<div class="empty"><div class="ei">🏆</div><p>لا يوجد لاعبون بعد</p></div>'}
+    </div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

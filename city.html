@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>المدينة – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('city');
+  if (!player) return;
+
+  const city = CITIES[player.city] || { name: player.city, flag: '🌐', desc: '' };
+
+  // اللاعبون في نفس المدينة
+  const { data: cityPlayers } = await supabase.from('players')
+    .select('id, username, avatar, level, gangs(name,tag)')
+    .eq('city', player.city)
+    .neq('id', player.id)
+    .order('level', { ascending: false })
+    .limit(10);
+
+  // العقارات المتاحة
+  const { data: cityProps } = await supabase.from('properties').select('*').eq('city', player.city);
+  const { data: ownedProps } = await supabase.from('player_properties').select('property_id').eq('player_id', player.id);
+  const ownedIds = ownedProps?.map(p => p.property_id) || [];
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">${city.flag}</div>
+      <div>
+        <div class="page-title">${city.name} – <em>${city.desc}</em></div>
+        <div class="page-sub">مدينتك الحالية</div>
+      </div>
+    </div>
+
+    <!-- روابط سريعة في المدينة -->
+    <div class="g4 mb16">
+      <a href="crimes.html" class="crime-card text-c" style="padding:16px">
+        <div class="ci">🔪</div><div class="cn">الجرائم</div>
+      </a>
+      <a href="work.html" class="crime-card text-c" style="padding:16px">
+        <div class="ci">💼</div><div class="cn">التوظيف</div>
+      </a>
+      <a href="gym.html" class="crime-card text-c" style="padding:16px">
+        <div class="ci">💪</div><div class="cn">النادي الرياضي</div>
+      </a>
+      <a href="bank.html" class="crime-card text-c" style="padding:16px">
+        <div class="ci">🏦</div><div class="cn">البنك</div>
+      </a>
+    </div>
+
+    <!-- السفر -->
+    <div class="card mb16">
+      <div class="card-title mb14">✈️ السفر لمدينة أخرى ($2,000)</div>
+      <div class="g3">
+        ${Object.entries(CITIES).map(([key, c]) => `
+          <div class="crime-card${key===player.city?' locked':''}" onclick="${key!==player.city?`travelTo('${key}','${c.name}')`:''}">
+            <div style="font-size:2rem">${c.flag}</div>
+            <div style="font-weight:700;margin-top:6px">${c.name}</div>
+            <div style="font-size:.75rem;color:var(--text2)">${c.desc}</div>
+            ${key===player.city?'<span class="badge badge-g mt8">أنت هنا</span>':''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- اللاعبون في المدينة -->
+    <div class="g2">
+      <div class="card">
+        <div class="card-title mb12">👥 لاعبون في ${city.name}</div>
+        ${cityPlayers && cityPlayers.length > 0 ? `
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${cityPlayers.map(p => `
+              <div class="rank-card" onclick="window.location.href='profile.html?id=${p.id}'">
+                <div class="rank-av">${p.avatar}</div>
+                <div class="rank-info">
+                  <div class="rank-name">${p.username}</div>
+                  <div class="rank-detail">${p.gangs?`💀 ${p.gangs.name}`:''}</div>
+                </div>
+                <span class="badge badge-r">مستوى ${p.level}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<div class="empty" style="padding:20px"><div class="ei">👥</div><p>لا يوجد لاعبون هنا</p></div>'}
+      </div>
+
+      <!-- العقارات -->
+      <div class="card">
+        <div class="card-title mb12">🏠 العقارات</div>
+        ${cityProps && cityProps.length > 0 ? `
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${cityProps.map(prop => {
+              const owned = ownedIds.includes(prop.id);
+              return `
+                <div style="padding:10px;background:var(--bg2);border-radius:var(--r2);border:1px solid ${owned?'rgba(0,230,118,.3)':'var(--border)'}">
+                  <div class="flex just-b items-c">
+                    <div>
+                      <div style="font-size:.85rem;font-weight:700">${prop.image} ${prop.name}</div>
+                      <div style="font-size:.72rem;color:var(--text2)">دخل يومي: ${$$(prop.daily_income)}</div>
+                    </div>
+                    ${owned ?
+                      `<span class="badge badge-g">✅ ملكك</span>` :
+                      `<div>
+                        <div style="font-size:.8rem;color:var(--gold);font-weight:700">${$$(prop.price)}</div>
+                        <button class="btn btn-r btn-sm mt6" onclick="buyProperty('${prop.id}','${prop.name}',${prop.price})"
+                          ${player.cash < prop.price ? 'disabled' : ''}>شراء</button>
+                      </div>`
+                    }
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        ` : '<div class="empty" style="padding:20px"><div class="ei">🏠</div><p>لا توجد عقارات</p></div>'}
+      </div>
+    </div>
+  `;
+}
+
+async function travelTo(city, cityName) {
+  confirm(`السفر إلى ${cityName} ($2,000)؟`, async () => {
+    const { data, error } = await supabase.rpc('travel_to_city', { p_city: city });
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) { await buildNav('city'); await init(); }
+  });
+}
+
+async function buyProperty(propId, name, price) {
+  confirm(`شراء "${name}" بـ ${$$(price)}؟ (دخل يومي)`, async () => {
+    if (player.cash < price) { toast('رصيدك غير كافٍ', 'e'); return; }
+    await supabase.from('players').update({ cash: player.cash - price }).eq('id', player.id);
+    await supabase.from('player_properties').insert({ player_id: player.id, property_id: propId });
+    toast(`تم شراء ${name}!`, 's');
+    player.cash -= price;
+    await init();
+  });
+}
+
+init();
+</script>
+</body>
+</html>

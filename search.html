@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>البحث – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('search');
+  if (!player) return;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🔍</div>
+      <div>
+        <div class="page-title">البحث عن <em>لاعبين</em></div>
+        <div class="page-sub">ابحث عن خصومك وأصدقائك</div>
+      </div>
+    </div>
+
+    <div class="card mb16">
+      <div class="flex gap8">
+        <input type="text" class="fc" id="search-input" placeholder="اسم اللاعب..." oninput="searchDebounce()">
+        <button class="btn btn-r" onclick="doSearch()">بحث</button>
+      </div>
+      <div class="flex flex-wrap gap6 mt10">
+        <button class="btn btn-ghost btn-sm" onclick="loadByCity('beirut')">🇱🇧 بيروت</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadByCity('amman')">🇯🇴 عمّان</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadByCity('damascus')">🇸🇾 دمشق</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadByCity('cairo')">🇪🇬 القاهرة</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadByCity('dubai')">🇦🇪 دبي</button>
+      </div>
+    </div>
+
+    <div id="results">
+      <div class="empty"><div class="ei">🔍</div><p>ابحث عن لاعب أو اختر مدينة</p></div>
+    </div>
+  `;
+
+  // Enter key
+  document.getElementById('search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSearch();
+  });
+}
+
+let _debounceTimer;
+function searchDebounce() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(doSearch, 400);
+}
+
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (q.length < 2) return;
+
+  const { data } = await supabase.from('players')
+    .select('id, username, avatar, level, city, gang_id, gangs(name,tag), strength')
+    .ilike('username', `%${q}%`)
+    .neq('id', player.id)
+    .limit(20);
+
+  renderResults(data);
+}
+
+async function loadByCity(city) {
+  const { data } = await supabase.from('players')
+    .select('id, username, avatar, level, city, gang_id, gangs(name,tag), strength')
+    .eq('city', city)
+    .neq('id', player.id)
+    .order('level', { ascending: false })
+    .limit(20);
+
+  renderResults(data);
+}
+
+function renderResults(players) {
+  const el = document.getElementById('results');
+  if (!players || players.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>لا توجد نتائج</p></div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${players.map(p => `
+        <div class="rank-card" onclick="window.location.href='profile.html?id=${p.id}'">
+          <div class="rank-av">${p.avatar}</div>
+          <div class="rank-info">
+            <div class="rank-name">${p.username}</div>
+            <div class="rank-detail">
+              ${p.gangs ? `💀 ${p.gangs.name} [${p.gangs.tag}] · ` : ''}
+              🌆 ${cityName(p.city)}
+            </div>
+          </div>
+          <div style="text-align:left">
+            <span class="badge badge-r">مستوى ${p.level}</span>
+            <div class="flex gap6 mt6">
+              <button class="btn btn-r btn-sm" onclick="event.stopPropagation();window.location.href='profile.html?id=${p.id}'">⚔️ ملف</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();window.location.href='messages.html?to=${p.username}'">✉️</button>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>

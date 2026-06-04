@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الأحداث – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script>
+let player, filterType = 'all', offset = 0;
+
+const TYPE_ICONS = {
+  crime_success: '✅', crime_jail: '⛓️', crime_hospital: '🏥',
+  attack_win: '⚔️', attack_loss: '💀', defense_win: '🛡️', defense_loss: '😱',
+  salary: '💰', bank_deposit: '💳', bank_withdraw: '💸', bank_interest: '📈', bank_open: '🏦',
+  buy_weapon: '🔫', training: '💪', level_up: '🎉', gang_join: '💀'
+};
+
+async function init(reset = true) {
+  player = await buildNav('events');
+  if (!player) return;
+  if (reset) offset = 0;
+  await loadEvents();
+}
+
+async function loadEvents() {
+  let q = supabase.from('events').select('*').eq('player_id', player.id).order('created_at', { ascending: false });
+  if (filterType !== 'all') {
+    q = q.like('type', filterType + '%');
+  }
+  const { data: events } = await q.range(offset, offset + 29);
+
+  if (offset === 0) {
+    document.getElementById('main').innerHTML = `
+      <div class="page-hdr">
+        <div class="page-icon">📋</div>
+        <div>
+          <div class="page-title">سجل <em>الأحداث</em></div>
+          <div class="page-sub">كل ما حدث في رحلتك الإجرامية</div>
+        </div>
+      </div>
+
+      <!-- فلاتر -->
+      <div class="flex flex-wrap gap6 mb16">
+        ${[
+          ['all','الكل','badge-gray'],
+          ['crime','الجرائم','badge-r'],
+          ['attack','الهجمات','badge-r'],
+          ['salary','الرواتب','badge-gold'],
+          ['bank','البنك','badge-g'],
+          ['training','التدريب','badge-b'],
+          ['level','الارتقاء','badge-gold'],
+        ].map(([t,l,c])=>`
+          <button class="badge ${filterType===t?c:'badge-gray'}" style="cursor:pointer;padding:5px 12px;font-size:.8rem" onclick="setFilter('${t}')">
+            ${l}
+          </button>`).join('')}
+      </div>
+
+      <div id="events-list"></div>
+      <div id="load-more" class="text-c mt16" style="display:none">
+        <button class="btn btn-ghost" onclick="loadMore()">تحميل المزيد</button>
+      </div>
+    `;
+  }
+
+  const list = document.getElementById('events-list');
+  if (!list) return;
+
+  if (!events || events.length === 0) {
+    if (offset === 0) list.innerHTML = '<div class="empty"><div class="ei">📋</div><p>لا توجد أحداث بعد. ابدأ باللعب!</p></div>';
+    document.getElementById('load-more').style.display = 'none';
+    return;
+  }
+
+  const html = events.map(ev => `
+    <div class="card mb8" style="border-color:${ev.money_change > 0 ? 'rgba(0,230,118,.2)' : ev.money_change < 0 ? 'rgba(220,20,60,.2)' : 'var(--border)'}">
+      <div class="flex items-c gap10">
+        <div style="font-size:1.5rem;min-width:36px;text-align:center">${TYPE_ICONS[ev.type] || '📌'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.875rem">${ev.title}</div>
+          ${ev.description ? `<div style="font-size:.78rem;color:var(--text2);margin-top:2px">${ev.description}</div>` : ''}
+        </div>
+        <div style="text-align:left;flex-shrink:0;min-width:70px">
+          ${ev.money_change ? `<div style="font-size:.85rem;font-weight:700;color:${ev.money_change>0?'var(--green)':'var(--red)'}">${ev.money_change>0?'+':''}${$$(ev.money_change)}</div>` : ''}
+          ${ev.exp_change ? `<div style="font-size:.75rem;color:var(--blue)">+${ev.exp_change} XP</div>` : ''}
+          <div style="font-size:.7rem;color:var(--muted);margin-top:2px">${relTime(ev.created_at)}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  if (offset === 0) list.innerHTML = html;
+  else list.insertAdjacentHTML('beforeend', html);
+
+  document.getElementById('load-more').style.display = events.length >= 30 ? '' : 'none';
+}
+
+function setFilter(type) {
+  filterType = type;
+  offset = 0;
+  loadEvents();
+}
+
+function loadMore() {
+  offset += 30;
+  loadEvents();
+}
+
+init();
+</script>
+</body>
+</html>

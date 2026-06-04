@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>المستودع – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('inventory');
+  if (!player) return;
+
+  const [{ data: inv }, { data: shopWpns }, { data: mktItems }] = await Promise.all([
+    supabase.from('inventory').select('*, weapons(*)').eq('player_id', player.id),
+    supabase.from('weapons').select('*').order('price'),
+    supabase.from('market').select('*').order('price').limit(20)
+  ]);
+
+  // قوة الهجوم والدفاع المجهزة
+  const equipped = inv?.filter(i => i.equipped) || [];
+  const atkBonus = equipped.filter(i=>i.weapons?.type!=='armor').reduce((s,i)=>s+i.weapons?.attack_bonus,0);
+  const defBonus = equipped.filter(i=>i.weapons?.type==='armor').reduce((s,i)=>s+i.weapons?.defense_bonus,0);
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🔫</div>
+      <div>
+        <div class="page-title">المستودع <em>الشخصي</em></div>
+        <div class="page-sub">أسلحتك وتجهيزاتك الحربية</div>
+      </div>
+    </div>
+
+    <!-- ملخص القوة -->
+    <div class="g4 mb16">
+      <div class="stat-c"><div class="si">⚔️</div><div class="sv">${atkBonus}</div><div class="sl">قوة الهجوم</div></div>
+      <div class="stat-c"><div class="si">🛡️</div><div class="sv">${defBonus}</div><div class="sl">قوة الدفاع</div></div>
+      <div class="stat-c"><div class="si">💼</div><div class="sv">${inv?.length || 0}</div><div class="sl">العناصر</div></div>
+      <div class="stat-c"><div class="si">✅</div><div class="sv">${equipped.length}</div><div class="sl">مجهّز</div></div>
+    </div>
+
+    <!-- tabs -->
+    <div style="display:flex;gap:2px;background:var(--bg2);border-radius:var(--r2);padding:3px;margin-bottom:16px">
+      ${['my','shop','market'].map((t,i)=>`
+        <div class="auth-tab${i===0?' active':''}" onclick="showTab('${t}',this)" style="flex:1">
+          ${t==='my'?'📦 مخزوني':t==='shop'?'🏪 متجر الأسلحة':'🔄 سوق الأسلحة'}
+        </div>`).join('')}
+    </div>
+
+    <!-- مخزوني -->
+    <div id="tab-my">
+      ${inv && inv.length > 0 ? `
+        <div class="g3">
+          ${inv.map(item => `
+            <div class="wpn-card${item.equipped?' equipped':''}">
+              <div class="wpn-icon">${item.weapons?.image}</div>
+              <div class="wpn-name">${item.weapons?.name}</div>
+              <div class="wpn-stats">
+                ${item.weapons?.attack_bonus ? `<span class="badge badge-r">⚔️ +${item.weapons.attack_bonus}</span>` : ''}
+                ${item.weapons?.defense_bonus ? `<span class="badge badge-b">🛡️ +${item.weapons.defense_bonus}</span>` : ''}
+                <span class="badge badge-gray">${WEAPON_TYPES[item.weapons?.type]?.name || item.weapons?.type}</span>
+              </div>
+              <div class="flex gap6">
+                <button class="btn ${item.equipped?'btn-gold':'btn-ghost'} btn-sm" style="flex:1" onclick="toggleEquip('${item.id}')">
+                  ${item.equipped ? '✅ مجهّز' : 'تجهيز'}
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="sellItem('${item.id}','${item.weapons?.name}')">بيع</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div class="empty"><div class="ei">🔫</div><p>مخزونك فارغ. اشتر أسلحة من المتجر!</p></div>'}
+    </div>
+
+    <!-- متجر الأسلحة -->
+    <div id="tab-shop" style="display:none">
+      <div class="g3">
+        ${shopWpns.map(w => {
+          const canBuy = player.level >= w.level_required && player.cash >= w.price;
+          const locked = player.level < w.level_required;
+          return `
+            <div class="wpn-card${locked?' locked':''}">
+              <div class="wpn-icon">${w.image}</div>
+              <div class="wpn-name">${w.name}</div>
+              <div class="wpn-stats mb10">
+                ${w.attack_bonus ? `<span class="badge badge-r">⚔️ +${w.attack_bonus}</span>` : ''}
+                ${w.defense_bonus ? `<span class="badge badge-b">🛡️ +${w.defense_bonus}</span>` : ''}
+                <span class="badge badge-gray">${WEAPON_TYPES[w.type]?.name || w.type}</span>
+              </div>
+              <div style="font-size:1.1rem;font-weight:900;color:var(--gold);margin-bottom:8px">${$$(w.price)}</div>
+              ${locked ? `<div style="font-size:.75rem;color:var(--orange)">🔒 مستوى ${w.level_required}</div>` :
+                `<button class="btn btn-r btn-sm btn-full" onclick="buyWeapon('${w.id}','${w.name}',${w.price})"
+                  ${player.cash < w.price ? 'disabled' : ''}>
+                  ${player.cash < w.price ? 'رصيد غير كافٍ' : 'شراء'}
+                </button>`}
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- سوق الأسلحة -->
+    <div id="tab-market" style="display:none">
+      ${mktItems && mktItems.length > 0 ? `
+        <div class="g3">
+          ${mktItems.map(m => `
+            <div class="wpn-card">
+              <div class="wpn-icon">${m.weapon_image}</div>
+              <div class="wpn-name">${m.weapon_name}</div>
+              <div class="wpn-stats mb8">
+                ${m.weapon_attack ? `<span class="badge badge-r">⚔️ +${m.weapon_attack}</span>` : ''}
+                ${m.weapon_defense ? `<span class="badge badge-b">🛡️ +${m.weapon_defense}</span>` : ''}
+              </div>
+              <div style="font-size:.72rem;color:var(--text2);margin-bottom:6px">البائع: ${m.seller_name}</div>
+              <div style="font-size:1.1rem;font-weight:900;color:var(--gold);margin-bottom:8px">${$$(m.price)}</div>
+              ${m.seller_id === player.id ?
+                `<button class="btn btn-outline btn-sm btn-full" onclick="cancelListing('${m.id}')">سحب العرض</button>` :
+                `<button class="btn btn-gold btn-sm btn-full" onclick="buyFromMarket('${m.id}','${m.weapon_name}',${m.price},${m.inventory_id})"
+                  ${player.cash < m.price ? 'disabled' : ''}>
+                  ${player.cash < m.price ? 'رصيد غير كافٍ' : 'شراء'}
+                </button>`
+              }
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div class="empty"><div class="ei">🔄</div><p>السوق فارغ حالياً</p></div>'}
+    </div>
+  `;
+}
+
+function showTab(name, el) {
+  document.querySelectorAll('#tab-my,#tab-shop,#tab-market').forEach(t => t.style.display='none');
+  document.getElementById(`tab-${name}`).style.display = '';
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function toggleEquip(invId) {
+  const { data, error } = await supabase.rpc('toggle_equip', { p_inv_id: invId });
+  toast(data?.message || error?.message, data?.success ? 's' : 'e');
+  if (data?.success) await init();
+}
+
+async function buyWeapon(weaponId, name, price) {
+  confirm(`شراء "${name}" مقابل ${$$(price)}؟`, async () => {
+    const { data, error } = await supabase.rpc('buy_weapon', { p_weapon_id: weaponId });
+    if (data?.success) sfxBuyWeapon();
+    toast(data?.message || error?.message, data?.success ? 's' : 'e');
+    if (data?.success) await init();
+  });
+}
+
+async function sellItem(invId, name) {
+  openModal(`
+    <div class="modal-hdr"><span class="modal-title">💰 بيع ${name}</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="fg">
+      <label class="fl">اختر طريقة البيع</label>
+      <select class="fc" id="sell-type">
+        <option value="direct">بيع فوري (نصف السعر)</option>
+        <option value="market">عرض في السوق (أنت تحدد السعر)</option>
+      </select>
+    </div>
+    <div class="fg" id="price-fg" style="display:none">
+      <label class="fl">السعر</label>
+      <input type="number" class="fc" id="sell-price" placeholder="أدخل السعر">
+    </div>
+    <button class="btn btn-r btn-full" onclick="confirmSell('${invId}')">تأكيد البيع</button>
+  `);
+  document.getElementById('sell-type').onchange = function() {
+    document.getElementById('price-fg').style.display = this.value === 'market' ? '' : 'none';
+  };
+}
+
+async function confirmSell(invId) {
+  const type = document.getElementById('sell-type').value;
+  const { data: invData } = await supabase.from('inventory').select('*, weapons(*)').eq('id', invId).single();
+
+  if (type === 'direct') {
+    const sellPrice = Math.floor(invData.weapons.price / 2);
+    await supabase.from('inventory').delete().eq('id', invId);
+    await supabase.from('players').update({ cash: player.cash + sellPrice }).eq('id', player.id);
+    closeModal();
+    toast(`تم بيع ${invData.weapons.name} بـ ${$$(sellPrice)}`, 's');
+    await init();
+  } else {
+    const price = parseInt(document.getElementById('sell-price').value);
+    if (!price || price <= 0) { toast('أدخل سعراً صحيحاً', 'w'); return; }
+    await supabase.from('market').insert({
+      seller_id: player.id, inventory_id: invId, weapon_id: invData.weapon_id,
+      price, seller_name: player.username, weapon_name: invData.weapons.name,
+      weapon_image: invData.weapons.image, weapon_attack: invData.weapons.attack_bonus,
+      weapon_defense: invData.weapons.defense_bonus
+    });
+    await supabase.from('inventory').update({ for_sale: true, sale_price: price }).eq('id', invId);
+    closeModal();
+    toast(`تم عرض ${invData.weapons.name} في السوق بسعر ${$$(price)}`, 's');
+    await init();
+  }
+}
+
+async function buyFromMarket(mktId, name, price, invId) {
+  confirm(`شراء "${name}" من السوق بـ ${$$(price)}؟`, async () => {
+    // نقل السلاح للمشتري
+    await supabase.from('players').update({ cash: player.cash - price }).eq('id', player.id);
+    await supabase.from('market').select('seller_id').eq('id', mktId).single().then(async ({data}) => {
+      if (data) {
+        const { data: seller } = await supabase.from('players').select('cash').eq('id', data.seller_id).single();
+        await supabase.from('players').update({ cash: seller.cash + price }).eq('id', data.seller_id);
+      }
+    });
+    await supabase.from('inventory').update({ player_id: player.id, for_sale: false, sale_price: null, equipped: false }).eq('id', invId);
+    await supabase.from('market').delete().eq('id', mktId);
+    toast(`تم شراء ${name}!`, 's');
+    await init();
+  });
+}
+
+async function cancelListing(mktId) {
+  await supabase.from('market').delete().eq('id', mktId);
+  toast('تم سحب العرض من السوق', 'i');
+  await init();
+}
+
+init();
+</script>
+</body>
+</html>

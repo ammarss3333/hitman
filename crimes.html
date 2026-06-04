@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الجرائم – قاتل مأجور</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+
+async function init() {
+  player = await buildNav('crimes');
+  if (!player) return;
+
+  const { data: crimes } = await supabase.from('crimes').select('*').order('min_level');
+
+  const now = new Date();
+  const inJail = player.in_jail && new Date(player.jail_until) > now;
+  const inHosp = player.in_hospital && new Date(player.hospital_until) > now;
+  const blocked = inJail || inHosp;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🔪</div>
+      <div>
+        <div class="page-title">مركز <em>الجرائم</em></div>
+        <div class="page-sub">الخطر يكمن في كل ركن – اختر جريمتك بحكمة</div>
+      </div>
+    </div>
+
+    ${inJail ? `<div class="card mb16" style="border-color:rgba(255,152,0,.4);background:rgba(255,152,0,.07)">
+      <div class="flex items-c gap12">⛓️ <div><div class="bold" style="color:var(--orange)">أنت في السجن!</div><div class="text-2 text-sm">ستُطلق سراحك خلال: ${timeLeft(player.jail_until)}</div></div>
+      </div></div>` : ''}
+    ${inHosp ? `<div class="card mb16" style="border-color:rgba(220,20,60,.4);background:rgba(220,20,60,.07)">
+      <div class="flex items-c gap12">🏥 <div><div class="bold" style="color:var(--red)">أنت في المشفى!</div><div class="text-2 text-sm">ستتعافى خلال: ${timeLeft(player.hospital_until)}</div></div>
+      </div></div>` : ''}
+
+    <!-- معلومات -->
+    <div class="g4 mb16">
+      <div class="stat-c"><div class="si">⚡</div><div class="sv">${player.energy}</div><div class="sl">الطاقة المتاحة</div></div>
+      <div class="stat-c"><div class="si">🎯</div><div class="sv">${player.level}</div><div class="sl">مستواك</div></div>
+      <div class="stat-c"><div class="si">💰</div><div class="sv" style="font-size:1rem">${$$(player.cash)}</div><div class="sl">رصيدك</div></div>
+      <div class="stat-c"><div class="si">⭐</div><div class="sv">${player.exp}</div><div class="sl">الخبرة</div></div>
+    </div>
+
+    <!-- بطاقات الجرائم -->
+    <div class="g3" id="crimes-grid">
+      ${crimes.map(c => {
+        const locked = player.level < c.min_level;
+        const noEnergy = player.energy < c.energy_cost;
+        const disabled = locked || blocked;
+        return `
+          <div class="crime-card${disabled ? ' locked' : ''}" onclick="${!disabled ? `doCrime('${c.id}')` : ''}">
+            <div class="ci">${c.image}</div>
+            <div class="cn">${c.name}</div>
+            <div class="cd">${c.description}</div>
+            <div class="crime-rewards">
+              <span class="badge badge-gold">💰 $${c.base_money_min}-$${c.base_money_max}</span>
+              <span class="badge badge-b">⚡ -${c.energy_cost}</span>
+              <span class="badge badge-g">⭐ +${c.base_exp}</span>
+              ${c.jail_chance > 0 ? `<span class="badge badge-r">⛓️ ${c.jail_chance}%</span>` : ''}
+            </div>
+            ${locked ? `<div style="margin-top:8px;font-size:.75rem;color:var(--orange)">🔒 يتطلب مستوى ${c.min_level}</div>` : ''}
+            ${!locked && noEnergy ? `<div style="margin-top:8px;font-size:.75rem;color:var(--red)">⚡ طاقتك غير كافية</div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+async function doCrime(crimeId) {
+  const card = event.currentTarget;
+  const old = card.innerHTML;
+  card.style.pointerEvents = 'none';
+  card.innerHTML = '<div class="loading" style="padding:20px"><div class="spinner"></div></div>';
+
+  const { data, error } = await supabase.rpc('perform_crime', { p_crime_id: crimeId });
+
+  if (error) {
+    toast(error.message, 'e');
+    card.innerHTML = old;
+    card.style.pointerEvents = '';
+    return;
+  }
+
+  if (data.success) {
+    // نجاح
+    sfxSuccess();
+    sfxMoney();
+    toast(data.message, 's', 4000);
+    card.innerHTML = `
+      <div style="text-align:center;padding:16px">
+        <div style="font-size:2.5rem;animation:popIn .4s ease">✅</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--green);margin-top:8px">نجحت!</div>
+        <div style="color:var(--gold);font-size:1.3rem;font-weight:900;margin-top:4px">+${$$(data.money_earned)}</div>
+        <div style="color:var(--blue);font-size:.85rem;margin-top:2px">+${data.exp_earned} خبرة</div>
+      </div>`;
+    setTimeout(() => init(), 2500);
+  } else {
+    // فشل
+    const icon = data.outcome === 'jail' ? '⛓️' : data.outcome === 'hospital' ? '🏥' : '❌';
+    if (data.outcome === 'jail') sfxJail();
+    else if (data.outcome === 'hospital') sfxHospital();
+    else sfxFail();
+    toast(data.message, 'e', 5000);
+    card.innerHTML = `
+      <div style="text-align:center;padding:16px">
+        <div style="font-size:2.5rem;animation:shake .4s ease">${icon}</div>
+        <div style="font-size:.9rem;color:var(--red);margin-top:8px">${data.message}</div>
+      </div>`;
+    setTimeout(() => init(), 3000);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
