@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الإنجازات – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* ── شريط الإحصائيات ── */
+.ach-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.ach-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center}
+.ach-stat-num{font-size:2rem;font-weight:900;line-height:1;color:var(--gold)}
+.ach-stat-lbl{font-size:.75rem;color:var(--text2);margin-top:4px}
+
+/* ── تبويبات الفئات ── */
+.cat-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.cat-tab{padding:6px 14px;border-radius:20px;background:var(--bg2);border:1px solid var(--border);color:var(--text2);font-size:.8rem;cursor:pointer;transition:all .2s}
+.cat-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ── شبكة الإنجازات ── */
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+
+/* ── بطاقة الإنجاز ── */
+.ach-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;text-align:center;position:relative;transition:transform .2s,box-shadow .2s}
+.ach-card:hover{transform:translateY(-2px)}
+.ach-card.earned{border-color:rgba(255,215,0,.4)}
+.ach-card.locked{opacity:.45;filter:grayscale(.5)}
+
+/* ندرة – ألوان الحدود والتوهج */
+.ach-card.rarity-common   { border-color:rgba(160,160,160,.5) }
+.ach-card.rarity-rare     { border-color:rgba(30,136,229,.6);  box-shadow:0 0 8px rgba(30,136,229,.12) }
+.ach-card.rarity-epic     { border-color:rgba(156,39,176,.65); box-shadow:0 0 10px rgba(156,39,176,.15) }
+.ach-card.rarity-legendary{ border-color:var(--gold);          box-shadow:0 0 14px rgba(255,215,0,.22) }
+.ach-card.earned.rarity-legendary{ box-shadow:0 0 22px rgba(255,215,0,.4) }
+
+.ach-icon{font-size:2.4rem;margin-bottom:8px;line-height:1}
+.ach-name{font-size:.85rem;font-weight:700;margin-bottom:5px}
+.ach-locked .ach-name,.ach-locked .ach-desc{color:var(--text2)}
+.ach-desc{font-size:.72rem;color:var(--text2);margin-bottom:8px;min-height:30px;line-height:1.4}
+.ach-reward{font-size:.7rem;color:var(--gold);margin-bottom:6px}
+.ach-date{font-size:.65rem;color:var(--text3,var(--text2));opacity:.7}
+
+/* شارة الندرة */
+.ach-rarity-badge{
+  position:absolute;top:8px;inset-inline-start:8px;
+  font-size:.6rem;padding:2px 7px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em
+}
+.rb-common   {background:rgba(160,160,160,.18);color:#aaa}
+.rb-rare     {background:rgba(30,136,229,.18);color:#42a5f5}
+.rb-epic     {background:rgba(156,39,176,.18);color:#ce93d8}
+.rb-legendary{background:rgba(255,215,0,.18);color:var(--gold)}
+
+/* شارة الإنجاز المستلم */
+.ach-earned-badge{
+  position:absolute;top:8px;inset-inline-end:8px;
+  font-size:.65rem;background:rgba(0,230,118,.15);color:#00e676;
+  padding:2px 6px;border-radius:8px
+}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+let allAchievements = [];
+let earnedCount = 0;
+let totalCount  = 0;
+let totalCash   = 0;
+let activeCategory = 'all';
+
+const CATEGORIES = [
+  { id: 'all',         label: 'كل الإنجازات', icon: '🏆' },
+  { id: 'combat',      label: 'قتال',          icon: '🔫' },
+  { id: 'crime',       label: 'جرائم',         icon: '🦹' },
+  { id: 'wealth',      label: 'ثروة',          icon: '💰' },
+  { id: 'progression', label: 'تطور',          icon: '⭐' },
+  { id: 'social',      label: 'اجتماعي',       icon: '👥' },
+];
+
+const RARITY_AR = {
+  common:    'عادي',
+  rare:      'نادر',
+  epic:      'ملحمي',
+  legendary: 'أسطوري',
+};
+
+async function init() {
+  player = await buildNav('achievements');
+  if (!player) return;
+
+  // تحقق من إنجازات جديدة عند فتح الصفحة
+  const { data: newOnes } = await supabase.rpc('check_achievements');
+  if (newOnes && newOnes.length > 0) {
+    toast(`🏆 حصلت على ${newOnes.length} إنجاز جديد!`, 's', 5000);
+  }
+
+  await loadAchievements();
+}
+
+async function loadAchievements() {
+  loading('#main', 'جاري تحميل الإنجازات...');
+
+  const { data, error } = await supabase.rpc('get_player_achievements');
+  if (error || !data) {
+    document.getElementById('main').innerHTML =
+      `<div class="empty"><div class="ei">❌</div><p>فشل تحميل الإنجازات</p></div>`;
+    return;
+  }
+
+  allAchievements = data.achievements || [];
+  earnedCount     = Number(data.earned_count) || 0;
+  totalCount      = Number(data.total_count)  || 0;
+  totalCash       = Number(data.total_cash)   || 0;
+
+  render();
+}
+
+function render() {
+  const filtered = activeCategory === 'all'
+    ? allAchievements
+    : allAchievements.filter(a => a.category === activeCategory);
+
+  const pct = totalCount > 0 ? Math.round((earnedCount / totalCount) * 100) : 0;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr">
+      <div class="page-icon">🏆</div>
+      <div>
+        <div class="page-title">الإنجازات</div>
+        <div class="page-sub">أثبت جدارتك واكسب المكافآت</div>
+      </div>
+    </div>
+
+    <!-- إحصائيات عامة -->
+    <div class="ach-stats">
+      <div class="ach-stat">
+        <div class="ach-stat-num">${earnedCount}<span style="font-size:1.1rem;color:var(--text2)">/${totalCount}</span></div>
+        <div class="ach-stat-lbl">إنجاز مكتمل</div>
+        <div style="margin-top:8px">
+          <div class="pbar" style="height:6px">
+            <div class="pbar-fill gold" style="width:${pct}%"></div>
+          </div>
+          <div style="font-size:.65rem;color:var(--text2);margin-top:4px">${pct}% مكتمل</div>
+        </div>
+      </div>
+      <div class="ach-stat">
+        <div class="ach-stat-num" style="font-size:1.4rem">${$$(totalCash)}</div>
+        <div class="ach-stat-lbl">إجمالي مكافآت الكاش</div>
+      </div>
+    </div>
+
+    <!-- تبويبات الفئات -->
+    <div class="cat-tabs">
+      ${CATEGORIES.map(c => `
+        <button class="cat-tab ${activeCategory === c.id ? 'active' : ''}"
+                onclick="setCategory('${c.id}')">
+          ${c.icon} ${c.label}
+        </button>
+      `).join('')}
+    </div>
+
+    <!-- شبكة الإنجازات -->
+    ${filtered.length === 0
+      ? `<div class="empty"><div class="ei">🔍</div><p>لا توجد إنجازات في هذه الفئة</p></div>`
+      : `<div class="ach-grid">${filtered.map(renderCard).join('')}</div>`
+    }
+  `;
+}
+
+function renderCard(a) {
+  const isSecret  = a.secret && !a.earned;
+  const rarityClass = `rarity-${a.rarity}`;
+  const earnedClass = a.earned ? 'earned' : 'locked';
+
+  const icon    = isSecret ? '❓' : a.icon;
+  const name    = isSecret ? '???' : a.name;
+  const desc    = isSecret ? 'أنجز هذا الإنجاز السري لاكتشافه' : (a.description || '');
+  const rewardTxt = !isSecret && a.reward_cash > 0
+    ? `💰 ${$$(a.reward_cash)}${a.reward_stat ? ' + ' + statName(a.reward_stat) + ' +' + a.reward_stat_val : ''}`
+    : '';
+  const dateTxt = a.earned && a.unlocked_at
+    ? `✅ مفتوح: ${relTime(a.unlocked_at)}`
+    : '';
+
+  return `
+    <div class="ach-card ${earnedClass} ${rarityClass}">
+      <span class="ach-rarity-badge rb-${a.rarity}">${RARITY_AR[a.rarity] || a.rarity}</span>
+      ${a.earned ? `<span class="ach-earned-badge">✓</span>` : ''}
+      <div class="ach-icon">${icon}</div>
+      <div class="ach-name">${name}</div>
+      <div class="ach-desc">${desc}</div>
+      ${rewardTxt ? `<div class="ach-reward">${rewardTxt}</div>` : ''}
+      ${dateTxt   ? `<div class="ach-date">${dateTxt}</div>` : ''}
+    </div>
+  `;
+}
+
+function setCategory(cat) {
+  activeCategory = cat;
+  render();
+}
+
+init();
+</script>
+</body>
+</html>

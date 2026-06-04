@@ -106,13 +106,14 @@ async function buildNav(activePage) {
     { icon: '🔫', label: 'المستودع',          href: 'inventory.html',   id: 'inventory' },
     { icon: '💊', label: 'الصيدلية',          href: 'pharmacy.html',    id: 'pharmacy' },
     { icon: '🎰', label: 'الكازينو',          href: 'casino.html',      id: 'casino' },
-    { icon: '🥊', label: 'نادي القتال',       href: 'fightclub.html',   id: 'fightclub' },
     { icon: '⛓️', label: 'السجن',             href: 'jail.html',        id: 'jail' },
     { icon: '💀', label: 'العصابات',          href: 'gangs.html',       id: 'gangs' },
     { icon: '✉️', label: 'البريد',             href: 'messages.html',    id: 'messages', badge: unread > 0 ? unread : 0 },
     { icon: '📋', label: 'الأحداث',           href: 'events.html',      id: 'events' },
     { icon: '🏆', label: 'المشاهير',          href: 'leaderboard.html', id: 'leaderboard' },
     { icon: '🔍', label: 'البحث',             href: 'search.html',      id: 'search' },
+    { icon: '🏆', label: 'الإنجازات',         href: 'achievements.html', id: 'achievements' },
+    { icon: '🕶️', label: 'السوق السوداء',    href: 'blackmarket.html', id: 'blackmarket' },
     ...(player.is_admin ? [{ icon: '👑', label: 'لوحة التحكم', href: 'admin.html', id: 'admin' }] : []),
   ];
 

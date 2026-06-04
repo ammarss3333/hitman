@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>السوق السوداء – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* ── هيدر جوي ── */
+.bm-hero{
+  background:linear-gradient(135deg,rgba(30,30,40,.95),rgba(20,20,30,.98));
+  border:1px solid rgba(255,215,0,.25);border-radius:var(--r);
+  padding:22px;margin-bottom:18px;text-align:center;position:relative;overflow:hidden
+}
+.bm-hero::before{
+  content:'🕶️';position:absolute;font-size:9rem;opacity:.04;
+  top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none
+}
+.bm-title{font-size:1.8rem;font-weight:900;color:var(--gold);text-shadow:0 0 18px rgba(255,215,0,.35);margin-bottom:6px}
+.bm-subtitle{font-size:.85rem;color:var(--text2);margin-bottom:14px}
+.bm-countdown{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);
+  border-radius:20px;padding:6px 16px;font-size:.9rem;color:var(--gold);font-variant-numeric:tabular-nums
+}
+
+/* ── شبكة العروض ── */
+.bm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+
+/* ── بطاقة العرض ── */
+.bm-card{
+  background:linear-gradient(160deg,rgba(20,20,30,1),rgba(15,15,25,1));
+  border:1px solid rgba(255,215,0,.2);border-radius:var(--r);
+  padding:16px;position:relative;transition:transform .2s,box-shadow .2s
+}
+.bm-card:hover{transform:translateY(-3px);box-shadow:0 6px 24px rgba(255,215,0,.1)}
+.bm-card.locked{opacity:.55;filter:grayscale(.4)}
+
+/* شارة خصم */
+.bm-discount-badge{
+  position:absolute;top:10px;inset-inline-start:10px;
+  background:var(--danger,#e53935);color:#fff;
+  font-size:.75rem;font-weight:900;padding:3px 9px;border-radius:12px;
+  box-shadow:0 2px 8px rgba(229,57,53,.35)
+}
+/* شارة مخزون محدود */
+.bm-limited-badge{
+  position:absolute;top:10px;inset-inline-end:10px;
+  background:rgba(255,152,0,.15);border:1px solid rgba(255,152,0,.4);
+  color:var(--orange);font-size:.65rem;padding:2px 7px;border-radius:10px
+}
+
+.bm-weapon-icon{font-size:2.8rem;text-align:center;margin:18px 0 10px}
+.bm-weapon-name{font-size:.95rem;font-weight:700;text-align:center;margin-bottom:10px}
+
+.bm-prices{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px}
+.bm-price-orig{font-size:.8rem;color:var(--text2);text-decoration:line-through}
+.bm-price-new{font-size:1.2rem;font-weight:900;color:var(--gold)}
+
+.bm-meta{display:flex;justify-content:space-between;font-size:.72rem;color:var(--text2);margin-bottom:12px}
+.bm-qty{color:var(--orange)}
+.bm-timer{font-variant-numeric:tabular-nums}
+
+.bm-stats{display:flex;justify-content:center;gap:12px;font-size:.72rem;color:var(--text2);margin-bottom:12px}
+.bm-stat-item{display:flex;align-items:center;gap:4px}
+
+.locked-msg{text-align:center;font-size:.75rem;color:var(--danger,#e57373);margin-bottom:8px}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+let items = [];
+let timerInterval = null;
+
+async function init() {
+  player = await buildNav('blackmarket');
+  if (!player) return;
+
+  // ضمان وجود عروض
+  await supabase.rpc('generate_black_market');
+
+  await loadItems();
+
+  // تحديث المؤقتات كل ثانية
+  timerInterval = setInterval(updateTimers, 1000);
+}
+
+async function loadItems() {
+  const { data, error } = await supabase.rpc('get_black_market');
+  if (error) {
+    document.getElementById('main').innerHTML =
+      `<div class="empty"><div class="ei">❌</div><p>فشل تحميل السوق السوداء</p></div>`;
+    return;
+  }
+  items = data || [];
+  render();
+}
+
+function render() {
+  // أقرب وقت انتهاء صلاحية
+  const soonestExpiry = items.length > 0
+    ? Math.min(...items.map(i => i.expires_in_sec))
+    : 0;
+
+  document.getElementById('main').innerHTML = `
+    <div class="bm-hero">
+      <div class="bm-title">🕶️ السوق السوداء</div>
+      <div class="bm-subtitle">⚠️ صفقات سرية لفترة محدودة — لا تُفوّت الفرصة</div>
+      ${soonestExpiry > 0
+        ? `<div class="bm-countdown">⏱️ الصفقات تنتهي خلال <span id="main-countdown">${fmtSec(soonestExpiry)}</span></div>`
+        : `<div class="bm-countdown" style="color:var(--text2)">⏳ جاري تحديث الصفقات...</div>`
+      }
+    </div>
+
+    ${items.length === 0
+      ? `<div class="empty"><div class="ei">🕳️</div><p>لا توجد صفقات متاحة حالياً — تحقق لاحقاً</p></div>`
+      : `<div class="bm-grid" id="bm-grid">${items.map(renderCard).join('')}</div>`
+    }
+  `;
+}
+
+function renderCard(item) {
+  const locked  = player.level < item.level_required;
+  const limited = item.quantity <= 2;
+  const typeIcon = item.weapon_type === 'armor' ? '🛡️' : (item.weapon_type === 'rifle' ? '🎯' : '🔫');
+
+  return `
+    <div class="bm-card ${locked ? 'locked' : ''}" id="card-${item.id}">
+      <span class="bm-discount-badge">-${item.discount_pct}%</span>
+      ${limited ? `<span class="bm-limited-badge">⚠️ مخزون محدود!</span>` : ''}
+
+      <div class="bm-weapon-icon">${item.weapon_icon || typeIcon}</div>
+      <div class="bm-weapon-name">${item.weapon_name}</div>
+
+      <div class="bm-prices">
+        <span class="bm-price-orig">${$$(item.original_price)}</span>
+        <span class="bm-price-new">${$$(item.discounted_price)}</span>
+      </div>
+
+      <div class="bm-stats">
+        ${item.attack_bonus  > 0 ? `<span class="bm-stat-item">⚔️ +${item.attack_bonus}</span>`  : ''}
+        ${item.defense_bonus > 0 ? `<span class="bm-stat-item">🛡️ +${item.defense_bonus}</span>` : ''}
+        <span class="bm-stat-item">📊 مستوى ${item.level_required}+</span>
+      </div>
+
+      <div class="bm-meta">
+        <span class="bm-qty">📦 متاح: ${item.quantity}</span>
+        <span class="bm-timer" id="timer-${item.id}">${fmtSec(item.expires_in_sec)}</span>
+      </div>
+
+      ${locked
+        ? `<div class="locked-msg">🔒 يتطلب مستوى ${item.level_required}</div>
+           <button class="btn btn-ghost btn-full btn-sm" disabled>مقفل</button>`
+        : `<button class="btn btn-full" style="background:linear-gradient(135deg,rgba(255,215,0,.15),rgba(255,152,0,.1));border:1px solid rgba(255,215,0,.4);color:var(--gold)"
+                   onclick="buyItem('${item.id}','${item.weapon_name}',${item.discounted_price})">
+            🛒 اشتر بـ ${$$(item.discounted_price)}
+           </button>`
+      }
+    </div>
+  `;
+}
+
+async function buyItem(itemId, weaponName, price) {
+  await confirm(`هل تريد شراء ${weaponName} بـ${$$(price)}؟`, async () => {
+    const { data, error } = await supabase.rpc('buy_black_market', { p_item_id: itemId });
+    if (error || !data || !data.success) {
+      toast((data && data.message) || (error && error.message) || 'فشلت عملية الشراء', 'e');
+      return;
+    }
+    sfxMoney?.();
+    sfxSuccess?.();
+    toast(`🕶️ ${data.message}`, 's', 4500);
+    // تحديث الصفحة
+    await loadItems();
+  });
+}
+
+// ── تحديث المؤقتات ──────────────────────────────────
+function updateTimers() {
+  items.forEach(item => {
+    item.expires_in_sec = Math.max(0, item.expires_in_sec - 1);
+    const el = document.getElementById('timer-' + item.id);
+    if (el) el.textContent = fmtSec(item.expires_in_sec);
+  });
+
+  // تحديث العداد الرئيسي
+  const soonest = items.length > 0 ? Math.min(...items.map(i => i.expires_in_sec)) : 0;
+  const mainEl = document.getElementById('main-countdown');
+  if (mainEl) mainEl.textContent = fmtSec(soonest);
+
+  // إذا انتهت كل العروض — أعد التحميل
+  if (items.every(i => i.expires_in_sec <= 0)) {
+    clearInterval(timerInterval);
+    setTimeout(async () => {
+      await supabase.rpc('generate_black_market');
+      await loadItems();
+      timerInterval = setInterval(updateTimers, 1000);
+    }, 2000);
+  }
+}
+
+function fmtSec(sec) {
+  if (!sec || sec <= 0) return '00:00:00';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return [h, m, s].map(n => String(n).padStart(2,'0')).join(':');
+}
+
+init();
+</script>
+</body>
+</html>
