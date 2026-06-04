@@ -26,7 +26,7 @@
 <script src="js/player.js"></script>
 <script src="js/sounds.js"></script>
 <script>
-let player, targetId, target;
+let player, targetId, target, targetBounties = [];
 
 async function init() {
   player = await buildNav('search');
@@ -36,15 +36,20 @@ async function init() {
   targetId = params.get('id');
   if (!targetId) { toast('لم يُحدَّد لاعب', 'e'); history.back(); return; }
 
-  const [{ data: t }, { data: inv }, { data: gang }, { data: atks }] = await Promise.all([
+  const [{ data: t }, { data: inv }, { data: gang }, { data: atks }, { data: bountiesRaw }] = await Promise.all([
     supabase.from('players').select('*, gangs!gang_id(name, tag)').eq('id', targetId).single(),
     supabase.from('inventory').select('*, weapons(*)').eq('player_id', targetId),
     targetId ? supabase.from('gang_members').select('gangs(name,tag,logo)').eq('player_id', targetId).single() : { data: null },
     supabase.from('attacks').select('*')
       .or(`attacker_id.eq.${player.id},defender_id.eq.${player.id}`)
       .or(`attacker_id.eq.${targetId},defender_id.eq.${targetId}`)
-      .order('created_at', { ascending: false }).limit(10)
+      .order('created_at', { ascending: false }).limit(10),
+    supabase.from('bounties').select('*')
+      .eq('target_id', targetId).eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
+      .order('amount', { ascending: false })
   ]);
+  targetBounties = bountiesRaw || [];
 
   if (!t) { toast('اللاعب غير موجود', 'e'); return; }
   target = t;
@@ -73,10 +78,32 @@ async function init() {
       ${!isSelf ? `
         <div class="flex flex-col gap6">
           <button class="btn btn-r attack-btn" onclick="attackPlayer()">⚔️ هجوم</button>
+          <button class="btn btn-gold btn-sm" onclick="openBountyModal()" style="background:rgba(212,175,55,.15);border-color:rgba(212,175,55,.4);color:var(--gold)">💰 ضع مكافأة</button>
           <a href="messages.html?to=${t.username}" class="btn btn-ghost btn-sm text-c">✉️ رسالة</a>
         </div>
       ` : `<a href="home.html" class="btn btn-ghost">← رجوع للرئيسية</a>`}
     </div>
+
+    <!-- مكافآت الرأس النشطة على هذا اللاعب -->
+    ${!isSelf && targetBounties.length > 0 ? `
+    <div class="card mb16" style="border-color:rgba(212,175,55,.3);background:rgba(212,175,55,.04)">
+      <div class="card-title mb12" style="color:var(--gold)">🎯 مكافآت رأس نشطة على ${t.username}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${targetBounties.map(b => `
+          <div class="flex items-c gap10" style="padding:10px;background:var(--bg2);border-radius:var(--r2);border-right:3px solid var(--gold)">
+            <span style="font-size:1.4rem">🎯</span>
+            <div style="flex:1;font-size:.82rem">
+              <div style="color:var(--text2)">نشرها: <span style="color:var(--text1)">${b.poster_name}</span></div>
+              <div style="font-size:.72rem;color:var(--muted)">⏳ ${timeLeft(b.expires_at) || 'تنتهي قريباً'}</div>
+            </div>
+            <div style="font-size:1.4rem;font-weight:900;color:var(--gold)">${$$(b.amount)}</div>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:10px;font-size:.78rem;color:var(--text2);text-align:center">
+        اهجم ${t.username} وانتصر عليه لجمع المكافأة!
+      </div>
+    </div>
+    ` : ''}
 
     <!-- الإحصائيات -->
     <div class="card mb16">
@@ -223,9 +250,73 @@ function showCombatResult(data) {
       ${data.attacker_wins && data.money_stolen > 0 ? `
         <div style="text-align:center;margin-top:10px;font-size:1.2rem;font-weight:900;color:var(--gold)">+${$$(data.money_stolen)}</div>
       ` : ''}
+      ${data.attacker_wins && data.bounty_claimed > 0 ? `
+        <div style="text-align:center;margin-top:8px;padding:10px;background:rgba(212,175,55,.12);border-radius:var(--r2);border:1px solid rgba(212,175,55,.3)">
+          <div style="font-size:.8rem;color:var(--text2)">🎯 مكافأة رأس</div>
+          <div style="font-size:1.5rem;font-weight:900;color:var(--gold)">+${$$(data.bounty_claimed)}</div>
+        </div>
+      ` : ''}
     </div>
     <button class="btn btn-r btn-full mt14" onclick="closeModal();init()">حسناً</button>
   `);
+}
+
+function openBountyModal() {
+  openModal(`
+    <div class="modal-hdr">
+      <span class="modal-title">🎯 ضع مكافأة على ${target.username}</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:2.5rem">${target.avatar || '👤'}</div>
+      <div style="font-weight:700;margin-top:4px">${target.username}</div>
+      <div style="font-size:.8rem;color:var(--text2)">مستوى ${target.level}</div>
+    </div>
+    <div class="form-group mb10">
+      <label class="form-label">💰 مبلغ المكافأة (الحد الأدنى: $1,000)</label>
+      <input class="form-input" id="bm-amount" type="number" min="1000" step="500" placeholder="1000"
+        oninput="document.getElementById('bm-preview').textContent = (parseInt(this.value)||0) >= 1000 ? '$'+(parseInt(this.value)).toLocaleString('en') : '$0'" />
+      <div id="bm-preview" style="text-align:center;font-size:2rem;font-weight:900;color:var(--gold);margin:8px 0">$0</div>
+    </div>
+    <div class="form-group mb16">
+      <label class="form-label">⏱️ المدة</label>
+      <select class="form-input" id="bm-hours">
+        <option value="2">2 ساعات</option>
+        <option value="6">6 ساعات</option>
+        <option value="12" selected>12 ساعة</option>
+        <option value="24">24 ساعة</option>
+        <option value="48">48 ساعة</option>
+      </select>
+    </div>
+    <div style="font-size:.8rem;color:var(--text2);margin-bottom:14px;text-align:center">
+      رصيدك: <strong style="color:var(--gold)">${$$(player.cash)}</strong>
+    </div>
+    <button class="btn btn-r btn-full" id="bm-submit" onclick="submitBountyModal()">🎯 نشر المكافأة</button>
+  `);
+}
+
+async function submitBountyModal() {
+  const amount = parseInt(document.getElementById('bm-amount').value);
+  const hours = parseInt(document.getElementById('bm-hours').value);
+  if (!amount || amount < 1000) { toast('الحد الأدنى $1,000', 'w'); return; }
+  if (amount > player.cash) { toast('رصيدك غير كافٍ', 'e'); return; }
+  const btn = document.getElementById('bm-submit');
+  btn.disabled = true; btn.textContent = '⏳ جاري النشر...';
+  const { data, error } = await supabase.rpc('post_bounty', {
+    p_target_id: targetId,
+    p_amount: amount,
+    p_hours: hours
+  });
+  if (error || !data?.success) {
+    toast(error?.message || data?.message, 'e');
+    btn.disabled = false; btn.textContent = '🎯 نشر المكافأة';
+    return;
+  }
+  closeModal();
+  sfxMoney();
+  toast(data.message, 's', 5000);
+  player.cash -= amount;
+  await init();
 }
 
 init();

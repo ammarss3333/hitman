@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة المطلوبين – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* ── Wanted poster aesthetic ── */
+.bounty-hero {
+  background: linear-gradient(135deg, rgba(180,120,0,.18) 0%, rgba(180,50,0,.12) 100%);
+  border: 1px solid rgba(212,175,55,.25);
+  border-radius: var(--r3);
+  padding: 20px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.bounty-hero-title {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  color: var(--gold);
+  text-shadow: 0 0 20px rgba(212,175,55,.4);
+  margin-bottom: 4px;
+}
+.bounty-hero-sub {
+  color: var(--text2);
+  font-size: .85rem;
+}
+.wanted-card {
+  background: var(--bg1);
+  border: 1px solid rgba(212,175,55,.2);
+  border-radius: var(--r3);
+  padding: 16px;
+  position: relative;
+  transition: border-color .2s, transform .15s;
+}
+.wanted-card:hover {
+  border-color: rgba(212,175,55,.5);
+  transform: translateY(-2px);
+}
+.wanted-card.expired-card {
+  opacity: .5;
+  border-color: rgba(255,255,255,.06);
+}
+.wanted-card.claimed-card {
+  border-color: rgba(34,197,94,.25);
+  background: rgba(34,197,94,.04);
+}
+.wanted-amount {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(212,175,55,.35);
+  letter-spacing: .04em;
+}
+.wanted-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: var(--red);
+  color: #fff;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.wanted-badge.claimed { background: var(--green); }
+.wanted-online-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  margin-left: 4px;
+}
+.wanted-online-dot.offline { background: var(--muted); box-shadow: none; }
+.timer-bar {
+  height: 3px;
+  background: var(--bg2);
+  border-radius: 99px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.timer-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--orange));
+  border-radius: 99px;
+  transition: width .5s linear;
+}
+.post-form {
+  background: var(--bg1);
+  border: 1px solid rgba(212,175,55,.2);
+  border-radius: var(--r3);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.post-form .card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--gold);
+}
+.my-bounties-section {
+  margin-bottom: 20px;
+}
+.search-result-item {
+  padding: 10px 14px;
+  background: var(--bg2);
+  border-radius: var(--r2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .9rem;
+  transition: background .15s;
+  border: 1px solid transparent;
+}
+.search-result-item:hover { border-color: var(--gold); }
+.amount-preview {
+  text-align: center;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 20px rgba(212,175,55,.4);
+  margin: 12px 0;
+  letter-spacing: .04em;
+  min-height: 52px;
+}
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+let allBounties = [];
+let selectedTarget = null;
+let searchDebounce = null;
+
+async function init() {
+  player = await buildNav('bounty');
+  if (!player) return;
+  await renderPage();
+}
+
+async function renderPage() {
+  const now = new Date();
+  const inJail = player.in_jail && new Date(player.jail_until) > now;
+  const inHosp = player.in_hospital && new Date(player.hospital_until) > now;
+
+  // جلب المكافآت
+  const { data: rawBounties, error } = await supabase.rpc('get_bounties');
+  allBounties = rawBounties || [];
+
+  // مكافآتي المنشورة (نشطة)
+  const myBounties = allBounties.filter(b => b.poster_id === player.id);
+
+  document.getElementById('main').innerHTML = `
+    <!-- رأس الصفحة -->
+    <div class="bounty-hero">
+      <div class="bounty-hero-title">🎯💰 لوحة المطلوبين</div>
+      <div class="bounty-hero-sub">ضع مكافأة على رأس عدوك — من يقتله يجمع المكافأة</div>
+    </div>
+
+    ${inJail || inHosp ? `
+      <div class="card mb16" style="border-color:rgba(220,20,60,.4);background:rgba(220,20,60,.07)">
+        <div class="flex items-c gap12">${inJail ? '⛓️' : '🏥'}
+          <div>
+            <div class="bold" style="color:var(--red)">${inJail ? 'أنت في السجن!' : 'أنت في المشفى!'}</div>
+            <div class="text-2 text-sm">${timeLeft(inJail ? player.jail_until : player.hospital_until)}</div>
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- مكافآتي المنشورة -->
+    ${myBounties.length > 0 ? `
+      <div class="my-bounties-section">
+        <div class="card-title mb12">📋 مكافآتي النشطة</div>
+        <div style="display:flex;flex-direction:column;gap:8px" id="my-bounties-list">
+          ${myBounties.map(b => myBountyRow(b)).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- نموذج نشر مكافأة -->
+    <div class="post-form mb20">
+      <div class="card-title">🩸 انشر مكافأة رأس جديدة</div>
+
+      <div class="form-group mb12">
+        <label class="form-label">🎯 اسم الهدف</label>
+        <div style="position:relative">
+          <input class="form-input" id="target-input" type="text" placeholder="ابحث عن لاعب..." autocomplete="off"
+            oninput="onTargetInput(this.value)" />
+          <div id="target-results" style="position:absolute;top:100%;right:0;left:0;z-index:100;
+            background:var(--bg1);border:1px solid var(--border);border-top:none;
+            border-radius:0 0 var(--r2) var(--r2);max-height:200px;overflow-y:auto;display:none"></div>
+        </div>
+        <div id="target-selected" style="display:none;margin-top:6px" class="flex items-c gap8">
+          <span id="target-selected-text" style="color:var(--gold);font-weight:700;font-size:.9rem"></span>
+          <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.75rem" onclick="clearTarget()">✕</button>
+        </div>
+      </div>
+
+      <div class="form-group mb12">
+        <label class="form-label">💰 مبلغ المكافأة (الحد الأدنى: $1,000)</label>
+        <input class="form-input" id="amount-input" type="number" min="1000" step="500"
+          placeholder="1000" oninput="updateAmountPreview(this.value)" />
+        <div class="amount-preview" id="amount-preview">$0</div>
+      </div>
+
+      <div class="form-group mb16">
+        <label class="form-label">⏱️ مدة المكافأة</label>
+        <select class="form-input" id="hours-select">
+          <option value="2">2 ساعات (يوم لعب)</option>
+          <option value="6">6 ساعات (3 أيام)</option>
+          <option value="12" selected>12 ساعة (6 أيام)</option>
+          <option value="24">24 ساعة (12 يوم)</option>
+          <option value="48">48 ساعة (24 يوم)</option>
+        </select>
+      </div>
+
+      <div class="flex items-c gap10 mb16" style="background:var(--bg2);padding:10px 14px;border-radius:var(--r2)">
+        <span style="font-size:1.1rem">💵</span>
+        <div>
+          <div style="font-size:.72rem;color:var(--text2)">رصيدك الحالي</div>
+          <div style="font-weight:700;color:var(--gold)">${$$(player.cash)}</div>
+        </div>
+      </div>
+
+      <button class="btn btn-r btn-full" id="post-btn" onclick="postBounty()">
+        🎯 انشر المكافأة
+      </button>
+    </div>
+
+    <!-- لوحة المطلوبين -->
+    <div class="card-title mb12">🩸 المطلوبون الآن</div>
+    <div id="board-list">
+      ${allBounties.length === 0
+        ? `<div class="empty"><div class="ei">🎯</div><p>لا توجد مكافآت نشطة حالياً</p></div>`
+        : allBounties.map(b => bountyCard(b)).join('')}
+    </div>
+  `;
+
+  // تحديث العدادات كل ثانية
+  startTimers();
+}
+
+function myBountyRow(b) {
+  const tLeft = timeLeft(b.expires_at);
+  return `
+    <div class="wanted-card flex items-c gap12" id="mb-${b.id}">
+      <div style="font-size:1.4rem">${b.target_avatar || '👤'}</div>
+      <div style="flex:1">
+        <div class="flex items-c gap8">
+          <span class="bold">${b.target_name}</span>
+          <span class="badge badge-gray">مستوى ${b.target_level}</span>
+        </div>
+        <div style="color:var(--text2);font-size:.8rem">⏳ ${tLeft || 'منتهية'}</div>
+      </div>
+      <div style="text-align:left;min-width:90px">
+        <div class="wanted-amount" style="font-size:1.1rem">${$$(b.amount)}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="white-space:nowrap;font-size:.75rem"
+        onclick="cancelBounty('${b.id}', '${b.target_name}', ${b.amount}, this)">
+        إلغاء (-10%)
+      </button>
+    </div>`;
+}
+
+function bountyCard(b) {
+  const tLeft = timeLeft(b.expires_at);
+  const isOnline = b.target_online;
+  const isMine = b.poster_id === player.id;
+  const totalDuration = new Date(b.expires_at) - new Date(b.created_at);
+  const remaining = Math.max(0, new Date(b.expires_at) - new Date());
+  const pctLeft = Math.min(100, Math.max(0, (remaining / totalDuration) * 100));
+
+  return `
+    <div class="wanted-card mb12" id="bc-${b.id}">
+      <div class="wanted-badge">WANTED</div>
+
+      <div class="flex items-c gap14" style="padding-right:68px">
+        <!-- الهدف -->
+        <div style="font-size:2.2rem">${b.target_avatar || '👤'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="flex items-c gap8 mb4">
+            <span class="bold" style="font-size:1.05rem">${b.target_name}</span>
+            <span class="badge badge-r">مستوى ${b.target_level}</span>
+            <span class="wanted-online-dot ${isOnline ? '' : 'offline'}" title="${isOnline ? 'نشط' : 'غير نشط'}"></span>
+          </div>
+          <div style="font-size:.78rem;color:var(--text2)">
+            نشرها: <span style="color:var(--text1)">${b.poster_name}</span>
+            ${isMine ? ' <span class="badge badge-gold" style="font-size:.65rem">أنت</span>' : ''}
+          </div>
+        </div>
+        <!-- المبلغ -->
+        <div style="text-align:left;min-width:110px">
+          <div style="font-size:.65rem;color:var(--text2);letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px">مكافأة الرأس</div>
+          <div class="wanted-amount">${$$(b.amount)}</div>
+        </div>
+      </div>
+
+      <!-- الوقت المتبقي وزر الهجوم -->
+      <div class="flex items-c gap10 mt12">
+        <div style="flex:1">
+          <div style="font-size:.72rem;color:var(--text2);margin-bottom:4px">⏳ ${tLeft || 'تنتهي قريباً'}</div>
+          <div class="timer-bar">
+            <div class="timer-bar-fill" id="timer-fill-${b.id}" style="width:${pctLeft}%"></div>
+          </div>
+        </div>
+        <a href="profile.html?id=${b.target_id}" class="btn btn-r btn-sm" style="white-space:nowrap">
+          ⚔️ هجوم
+        </a>
+      </div>
+    </div>`;
+}
+
+function updateAmountPreview(val) {
+  const n = parseInt(val) || 0;
+  document.getElementById('amount-preview').textContent = n >= 1000 ? $$(n) : '$0';
+}
+
+function onTargetInput(val) {
+  clearTimeout(searchDebounce);
+  if (val.length < 2) { hideResults(); return; }
+  searchDebounce = setTimeout(() => searchPlayers(val), 300);
+}
+
+async function searchPlayers(q) {
+  const { data } = await supabase
+    .from('players')
+    .select('id, username, level, avatar')
+    .ilike('username', `%${q}%`)
+    .neq('id', player.id)
+    .limit(8);
+
+  const el = document.getElementById('target-results');
+  if (!data || data.length === 0) { hideResults(); return; }
+
+  el.innerHTML = data.map(p => `
+    <div class="search-result-item" onclick="selectTarget('${p.id}', '${p.username.replace(/'/g,"\\'")}', '${p.avatar || '👤'}', ${p.level})">
+      <span style="font-size:1.3rem">${p.avatar || '👤'}</span>
+      <span>${p.username}</span>
+      <span class="badge badge-r" style="font-size:.7rem">مستوى ${p.level}</span>
+    </div>`).join('');
+  el.style.display = 'block';
+}
+
+function hideResults() {
+  const el = document.getElementById('target-results');
+  if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+
+function selectTarget(id, username, avatar, level) {
+  selectedTarget = { id, username, avatar, level };
+  document.getElementById('target-input').value = '';
+  document.getElementById('target-input').placeholder = username;
+  hideResults();
+  const sel = document.getElementById('target-selected');
+  sel.style.display = 'flex';
+  document.getElementById('target-selected-text').textContent = `🎯 ${avatar} ${username} (مستوى ${level})`;
+}
+
+function clearTarget() {
+  selectedTarget = null;
+  document.getElementById('target-input').value = '';
+  document.getElementById('target-input').placeholder = 'ابحث عن لاعب...';
+  document.getElementById('target-selected').style.display = 'none';
+}
+
+async function postBounty() {
+  if (!selectedTarget) { toast('اختر هدفاً أولاً', 'w'); return; }
+  const amount = parseInt(document.getElementById('amount-input').value);
+  const hours = parseInt(document.getElementById('hours-select').value);
+
+  if (!amount || amount < 1000) { toast('الحد الأدنى للمكافأة $1,000', 'w'); return; }
+  if (amount > player.cash) { toast('رصيدك غير كافٍ', 'e'); return; }
+
+  const btn = document.getElementById('post-btn');
+  btn.disabled = true; btn.textContent = '⏳ جاري النشر...';
+
+  const { data, error } = await supabase.rpc('post_bounty', {
+    p_target_id: selectedTarget.id,
+    p_amount: amount,
+    p_hours: hours
+  });
+
+  btn.disabled = false; btn.textContent = '🎯 انشر المكافأة';
+
+  if (error) { toast(error.message, 'e'); return; }
+  if (!data.success) { toast(data.message, 'e'); return; }
+
+  sfxMoney();
+  toast(data.message, 's', 5000);
+  player.cash -= amount;
+  clearTarget();
+  document.getElementById('amount-input').value = '';
+  document.getElementById('amount-preview').textContent = '$0';
+  await renderPage();
+}
+
+async function cancelBounty(bountyId, targetName, amount, btn) {
+  const refund = Math.floor(amount * 0.9);
+  confirm(
+    `هل أنت متأكد من إلغاء المكافأة على ${targetName}؟<br>ستسترد <strong style="color:var(--gold)">${$$(refund)}</strong> (بعد خصم 10% رسوم)`,
+    async () => {
+      btn.disabled = true;
+      const { data, error } = await supabase.rpc('cancel_bounty', { p_bounty_id: bountyId });
+      if (error || !data?.success) {
+        toast((error?.message || data?.message), 'e');
+        btn.disabled = false;
+        return;
+      }
+      toast(data.message, 's');
+      player.cash += data.refund;
+      await renderPage();
+    }
+  );
+}
+
+// تحديث عدادات الوقت
+function startTimers() {
+  setInterval(() => {
+    allBounties.forEach(b => {
+      const fill = document.getElementById(`timer-fill-${b.id}`);
+      if (!fill) return;
+      const totalDuration = new Date(b.expires_at) - new Date(b.created_at);
+      const remaining = Math.max(0, new Date(b.expires_at) - new Date());
+      const pct = Math.min(100, Math.max(0, (remaining / totalDuration) * 100));
+      fill.style.width = pct + '%';
+      if (pct === 0) fill.style.background = 'var(--red)';
+    });
+  }, 1000);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -100,6 +100,7 @@ async function buildNav(activePage) {
     { icon: '🌆', label: 'المدينة',           href: 'city.html',        id: 'city' },
     { icon: '🔪', label: 'الجرائم',           href: 'crimes.html',      id: 'crimes' },
     { icon: '🎯', label: 'عقود الاغتيال',     href: 'contracts.html',   id: 'contracts' },
+    { icon: '💰', label: 'مطلوبون',           href: 'bounty.html',      id: 'bounty' },
     { icon: '💪', label: 'النادي الرياضي',    href: 'gym.html',         id: 'gym' },
     { icon: '💼', label: 'العمل',             href: 'work.html',        id: 'work' },
     { icon: '🏦', label: 'البنك',             href: 'bank.html',        id: 'bank' },
