@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نادي القتال السري – قاتل مأجور</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* ── Page Header ── */
+.fc-header {
+  background: linear-gradient(135deg, rgba(139,0,0,.25) 0%, rgba(30,0,0,.6) 100%);
+  border: 1px solid rgba(180,0,0,.35);
+  border-radius: var(--r);
+  padding: 28px 24px;
+  margin-bottom: 22px;
+  text-align: center;
+  animation: fadeUp .4s ease;
+  position: relative;
+  overflow: hidden;
+}
+.fc-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 20px,
+    rgba(139,0,0,.04) 20px,
+    rgba(139,0,0,.04) 40px
+  );
+  pointer-events: none;
+}
+.fc-header-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+.fc-header-title {
+  font-size: 1.7rem;
+  font-weight: 900;
+  color: #ff3333;
+  text-shadow: 0 0 20px rgba(255,51,51,.5), 0 0 40px rgba(255,51,51,.2);
+  margin-bottom: 6px;
+}
+.fc-header-sub {
+  font-size: .85rem;
+  color: var(--text2);
+  letter-spacing: .5px;
+}
+
+/* ── Cash Bar ── */
+.fc-cash {
+  background: var(--card);
+  border: 1px solid rgba(255,215,0,.2);
+  border-radius: var(--r);
+  padding: 14px 20px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: fadeUp .4s ease;
+}
+.fc-cash .cc-icon { font-size: 1.8rem }
+.fc-cash .cc-lbl  { font-size: .75rem; color: var(--text2); font-weight: 600 }
+.fc-cash .cc-val  { font-size: 1.4rem; font-weight: 900; color: var(--gold); text-shadow: 0 0 10px var(--gold-glow) }
+
+/* ── Section ── */
+.fc-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 22px;
+  margin-bottom: 22px;
+  animation: fadeUp .4s ease;
+}
+.fc-section-title {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--text);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Fight Cards Grid ── */
+.fights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* ── Fight Card ── */
+.fight-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 18px;
+  transition: border-color .2s, box-shadow .2s;
+  position: relative;
+  overflow: hidden;
+}
+.fight-card:hover {
+  border-color: rgba(180,0,0,.4);
+  box-shadow: 0 4px 20px rgba(180,0,0,.1);
+}
+.fight-card.finished {
+  border-color: rgba(255,215,0,.2);
+  opacity: .85;
+}
+.fight-card.locked {
+  border-color: rgba(255,152,0,.3);
+}
+
+.fight-arena {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 8px;
+}
+.fighter-side {
+  flex: 1;
+  text-align: center;
+}
+.fighter-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(139,0,0,.25);
+  border: 2px solid rgba(180,0,0,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  margin: 0 auto 8px;
+  transition: all .3s;
+}
+.fighter-avatar.winner-glow {
+  border-color: var(--gold);
+  box-shadow: 0 0 18px var(--gold-glow);
+  background: rgba(255,215,0,.1);
+}
+.fighter-avatar.loser-dim {
+  opacity: .35;
+  filter: grayscale(1);
+}
+.fighter-name {
+  font-size: .82rem;
+  font-weight: 900;
+  color: var(--text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fighter-power-bar-wrap {
+  background: var(--border);
+  border-radius: 4px;
+  height: 5px;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+.fighter-power-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #8b0000, #ff3333);
+  transition: width .6s ease;
+}
+.fighter-power-label {
+  font-size: .68rem;
+  color: var(--text2);
+}
+
+.vs-badge {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #ff3333;
+  text-shadow: 0 0 10px rgba(255,51,51,.5);
+  flex-shrink: 0;
+  padding: 0 4px;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.vs-badge.stopped { animation: none; color: var(--text2) }
+
+/* ── Bet totals bar ── */
+.bet-totals-bar {
+  background: var(--border);
+  border-radius: 4px;
+  height: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  display: flex;
+}
+.bet-totals-f1 {
+  background: linear-gradient(90deg, #1a6bff, #448aff);
+  height: 100%;
+  transition: width .5s ease;
+}
+.bet-totals-f2 {
+  background: linear-gradient(90deg, #ff3333, #8b0000);
+  height: 100%;
+  flex: 1;
+  transition: width .5s ease;
+}
+.bet-totals-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: .68rem;
+  color: var(--text2);
+  margin-bottom: 12px;
+}
+
+/* ── Status badge ── */
+.fight-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+.fight-status-badge.open   { background: rgba(0,230,118,.1); color: var(--green); border: 1px solid rgba(0,230,118,.25) }
+.fight-status-badge.locked { background: rgba(255,152,0,.1); color: var(--orange); border: 1px solid rgba(255,152,0,.25) }
+.fight-status-badge.finished { background: rgba(255,215,0,.1); color: var(--gold); border: 1px solid rgba(255,215,0,.25) }
+
+.fight-countdown {
+  font-size: .75rem;
+  color: var(--text2);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.fight-countdown.urgent { color: var(--orange); font-weight: 700 }
+
+/* ── Bet buttons ── */
+.bet-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.bet-btn {
+  padding: 9px 6px;
+  border-radius: var(--r2);
+  border: none;
+  font-family: 'Tajawal', sans-serif;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bet-btn:hover { transform: scale(1.03) }
+.bet-btn:active { transform: scale(.97) }
+.bet-btn-f1 {
+  background: rgba(68,138,255,.15);
+  color: var(--blue);
+  border: 1px solid rgba(68,138,255,.3);
+}
+.bet-btn-f1:hover { background: rgba(68,138,255,.28); border-color: var(--blue) }
+.bet-btn-f2 {
+  background: rgba(220,20,60,.15);
+  color: #ff5555;
+  border: 1px solid rgba(220,20,60,.3);
+}
+.bet-btn-f2:hover { background: rgba(220,20,60,.28); border-color: #ff5555 }
+
+/* ── My bet indicator ── */
+.my-bet-indicator {
+  background: rgba(255,215,0,.08);
+  border: 1px solid rgba(255,215,0,.2);
+  border-radius: var(--r2);
+  padding: 8px 12px;
+  font-size: .78rem;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+}
+.my-bet-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: pulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.my-bet-dot.settled { animation: none; }
+.my-bet-dot.won  { background: var(--green) }
+.my-bet-dot.lost { background: var(--red); animation: none }
+
+/* ── Winner banner ── */
+.winner-banner {
+  background: linear-gradient(135deg, rgba(255,215,0,.12), rgba(255,152,0,.06));
+  border: 1px solid rgba(255,215,0,.25);
+  border-radius: var(--r2);
+  padding: 10px 14px;
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--gold);
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* ── Result log ── */
+.result-log-text {
+  font-size: .78rem;
+  color: var(--text2);
+  line-height: 1.6;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Recent results ── */
+.recent-list { display: flex; flex-direction: column; gap: 10px }
+.recent-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: .82rem;
+}
+.recent-fighters { font-weight: 700; color: var(--text) }
+.recent-winner   { font-size: .75rem; color: var(--gold) }
+.recent-pot      { font-size: .72rem; color: var(--text2) }
+.recent-my-result {
+  font-size: .78rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.recent-my-result.won  { background: rgba(0,230,118,.1); color: var(--green) }
+.recent-my-result.lost { background: rgba(220,20,60,.1); color: var(--red) }
+.recent-my-result.none { background: var(--border); color: var(--text2) }
+
+/* ── Combat Animation Overlay ── */
+@keyframes fcFadeIn  { from { opacity:0 } to { opacity:1 } }
+@keyframes fcSlideUp { from { transform:translateY(30px);opacity:0 } to { transform:translateY(0);opacity:1 } }
+@keyframes shake     { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+@keyframes hpDrain   { from { width: var(--from) } to { width: var(--to) } }
+@keyframes flashRed  { 0%,100%{background:transparent} 50%{background:rgba(255,0,0,.35)} }
+@keyframes winnerPop { 0%{transform:scale(.5);opacity:0} 60%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+@keyframes textReveal{ from{opacity:0;letter-spacing:3px} to{opacity:1;letter-spacing:normal} }
+
+.combat-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.9);
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fcFadeIn .4s ease;
+}
+.combat-box {
+  background: linear-gradient(135deg, #0d0000, #1a0000);
+  border: 2px solid rgba(180,0,0,.5);
+  border-radius: var(--r);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 0 60px rgba(180,0,0,.25);
+  animation: fcSlideUp .4s ease;
+}
+.combat-title {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #ff3333;
+  text-shadow: 0 0 15px rgba(255,51,51,.5);
+  margin-bottom: 22px;
+  letter-spacing: 1px;
+}
+.combat-fighters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.combat-fighter {
+  flex: 1;
+  text-align: center;
+}
+.combat-fighter-icon {
+  font-size: 3rem;
+  line-height: 1;
+  display: block;
+  margin-bottom: 8px;
+  transition: transform .1s;
+}
+.combat-fighter-icon.punch { animation: shake .25s ease }
+.combat-fighter-name {
+  font-size: .85rem;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.hp-bar-wrap {
+  background: rgba(255,255,255,.1);
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.hp-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #00e676, #69f0ae);
+  transition: width .4s ease;
+}
+.hp-bar.low  { background: linear-gradient(90deg, #ff9800, #ffb74d) }
+.hp-bar.crit { background: linear-gradient(90deg, #f44336, #ef9a9a) }
+.hp-label {
+  font-size: .68rem;
+  color: var(--text2);
+}
+.combat-vs {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #ff3333;
+  text-shadow: 0 0 12px rgba(255,51,51,.6);
+  flex-shrink: 0;
+}
+.combat-log {
+  min-height: 40px;
+  text-align: center;
+  font-size: .82rem;
+  color: var(--text2);
+  margin-bottom: 18px;
+  line-height: 1.5;
+  font-style: italic;
+}
+.combat-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--r);
+}
+.combat-flash.active { animation: flashRed .25s ease }
+.combat-winner-reveal {
+  text-align: center;
+  animation: winnerPop .5s ease;
+  margin-top: 8px;
+}
+.combat-winner-name {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 20px var(--gold-glow);
+  display: block;
+  margin-bottom: 6px;
+}
+.combat-winner-label {
+  font-size: .8rem;
+  color: var(--text2);
+  margin-bottom: 16px;
+}
+.combat-result-story {
+  background: rgba(255,215,0,.05);
+  border: 1px solid rgba(255,215,0,.15);
+  border-radius: var(--r2);
+  padding: 14px;
+  font-size: .8rem;
+  color: var(--text2);
+  line-height: 1.7;
+  margin-bottom: 18px;
+  animation: textReveal .6s ease .3s both;
+}
+.combat-my-outcome {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 900;
+  padding: 10px 16px;
+  border-radius: var(--r2);
+  margin-bottom: 16px;
+  animation: winnerPop .4s ease .5s both;
+}
+.combat-my-outcome.won  { background: rgba(0,230,118,.12); color: var(--green); border: 1px solid rgba(0,230,118,.3) }
+.combat-my-outcome.lost { background: rgba(220,20,60,.12); color: var(--red);   border: 1px solid rgba(220,20,60,.3) }
+
+/* ── Bet Modal ── */
+.bet-modal-pick {
+  text-align: center;
+  font-size: .9rem;
+  color: var(--text2);
+  margin-bottom: 16px;
+}
+.bet-modal-pick strong { color: var(--text); font-size: 1rem }
+.bet-odds-preview {
+  background: var(--bg2);
+  border-radius: var(--r2);
+  padding: 10px 14px;
+  font-size: .8rem;
+  color: var(--text2);
+  margin-bottom: 16px;
+}
+.bet-odds-preview .est-win { color: var(--green); font-weight: 700 }
+
+/* ── Pulse indicator ── */
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(255,215,0,.5) }
+  70%  { box-shadow: 0 0 0 8px rgba(255,215,0,0) }
+  100% { box-shadow: 0 0 0 0 rgba(255,215,0,0) }
+}
+.my-bet-dot { animation: pulseRing 1.6s ease-in-out infinite }
+</style>
+</head>
+<body>
+<button class="mob-toggle" id="mob-toggle">☰</button>
+<div class="overlay-mob" id="mob-overlay"></div>
+<div class="app">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main">
+    <div class="loading"><div class="spinner"></div><p>جاري التحميل...</p></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/player.js"></script>
+<script src="js/sounds.js"></script>
+<script>
+let player;
+let fights = [];
+let countdownInterval = null;
+// Track fights where we've shown the combat animation (so it only fires once per session)
+const shownCombat = new Set();
+
+// ── Init ───────────────────────────────────────────────
+async function init() {
+  player = await buildNav('fightclub');
+  if (!player) return;
+
+  // Ensure there are always fights to bet on
+  await supabase.rpc('generate_npc_fights');
+
+  await loadFights();
+  renderPage();
+  startCountdownTick();
+}
+
+// ── Load fights ────────────────────────────────────────
+async function loadFights() {
+  const { data, error } = await supabase.rpc('get_fight_events');
+  if (error) { console.error(error); return; }
+  fights = data || [];
+}
+
+// ── Render full page ───────────────────────────────────
+function renderPage() {
+  const active   = fights.filter(f => f.status !== 'finished');
+  const finished = fights.filter(f => f.status === 'finished');
+
+  document.getElementById('main').innerHTML = `
+    <div class="fc-header">
+      <div class="fc-header-icon">⚔️</div>
+      <div class="fc-header-title">نادي القتال السري</div>
+      <div class="fc-header-sub">راهن على المنتصر — الفائز يأخذ كل شيء</div>
+    </div>
+
+    <div class="fc-cash">
+      <div class="cc-icon">💵</div>
+      <div>
+        <div class="cc-lbl">رصيدك الحالي</div>
+        <div class="cc-val" id="cash-display">${$$(player.cash)}</div>
+      </div>
+    </div>
+
+    <div class="fc-section">
+      <div class="fc-section-title">🥊 القتالات الحالية</div>
+      <div class="fights-grid" id="active-fights">
+        ${active.length ? active.map(fightCardHTML).join('') : emptyFights()}
+      </div>
+    </div>
+
+    <div class="fc-section">
+      <div class="fc-section-title">📜 آخر النتائج</div>
+      <div class="recent-list" id="recent-fights">
+        ${finished.length ? finished.slice(0,5).map(recentItemHTML).join('') : '<div class="empty"><div class="ei">⏳</div><p>لا توجد نتائج بعد</p></div>'}
+      </div>
+    </div>
+  `;
+}
+
+function emptyFights() {
+  return '<div class="empty" style="grid-column:1/-1"><div class="ei">🥊</div><p>لا توجد قتالات حالياً — جاري تجهيز الحلبة…</p></div>';
+}
+
+// ── Fight card HTML ────────────────────────────────────
+function fightCardHTML(f) {
+  const myBet   = f.my_bet;
+  const total   = (f.f1_bet_total || 0) + (f.f2_bet_total || 0);
+  const f1Pct   = total > 0 ? Math.round(f.f1_bet_total / total * 100) : 50;
+  const f2Pct   = 100 - f1Pct;
+  const maxPow  = 120;
+
+  const statusLabel = { open: '🟢 مفتوح', locked: '🔒 مغلق', finished: '🏆 منتهي' };
+  const timeStr = timeLeft(f.fight_at);
+  const urgent  = timeStr && (f.fight_at - Date.now() < 5 * 60 * 1000);
+
+  const f1Winner = f.status === 'finished' && f.winner_name === f.fighter1_name;
+  const f2Winner = f.status === 'finished' && f.winner_name === f.fighter2_name;
+
+  return `
+    <div class="fight-card ${f.status}" id="fight-${f.id}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+        <span class="fight-status-badge ${f.status}">${statusLabel[f.status] || f.status}</span>
+        ${f.status !== 'finished' && timeStr
+          ? `<span class="fight-countdown ${urgent ? 'urgent' : ''}">⏱ ${timeStr}</span>`
+          : f.status === 'finished'
+          ? `<span class="fight-countdown">منذ ${relTime(f.fight_at)}</span>`
+          : ''}
+      </div>
+
+      <div class="fight-arena">
+        <div class="fighter-side">
+          <div class="fighter-avatar ${f1Winner ? 'winner-glow' : f2Winner ? 'loser-dim' : ''}">${f.fighter1_id ? '👤' : '💀'}</div>
+          <div class="fighter-name">${f.fighter1_name}</div>
+          <div class="fighter-power-bar-wrap">
+            <div class="fighter-power-bar" style="width:${Math.round(f.fighter1_power / maxPow * 100)}%"></div>
+          </div>
+          <div class="fighter-power-label">قوة ${f.fighter1_power}</div>
+        </div>
+
+        <div class="vs-badge ${f.status === 'finished' ? 'stopped' : ''}">VS</div>
+
+        <div class="fighter-side">
+          <div class="fighter-avatar ${f2Winner ? 'winner-glow' : f1Winner ? 'loser-dim' : ''}">${f.fighter2_id ? '👤' : '💀'}</div>
+          <div class="fighter-name">${f.fighter2_name}</div>
+          <div class="fighter-power-bar-wrap">
+            <div class="fighter-power-bar" style="width:${Math.round(f.fighter2_power / maxPow * 100)}%"></div>
+          </div>
+          <div class="fighter-power-label">قوة ${f.fighter2_power}</div>
+        </div>
+      </div>
+
+      <!-- Bet totals bar -->
+      <div class="bet-totals-bar">
+        <div class="bet-totals-f1" style="width:${f1Pct}%"></div>
+        <div class="bet-totals-f2" style="width:${f2Pct}%"></div>
+      </div>
+      <div class="bet-totals-labels">
+        <span style="color:var(--blue)">${$$(f.f1_bet_total || 0)} (${f1Pct}%)</span>
+        <span style="color:var(--text2);font-size:.65rem">إجمالي الرهانات: ${$$(total)}</span>
+        <span style="color:#ff5555">(${f2Pct}%) ${$$(f.f2_bet_total || 0)}</span>
+      </div>
+
+      ${f.status === 'finished' ? `
+        <div class="winner-banner">🏆 الفائز: ${f.winner_name}</div>
+        ${f.result_log ? `<div class="result-log-text">${f.result_log}</div>` : ''}
+      ` : ''}
+
+      ${myBet ? myBetHTML(myBet, f) : ''}
+
+      ${f.status === 'open' && !myBet ? `
+        <div class="bet-buttons">
+          <button class="bet-btn bet-btn-f1" onclick="openBetModal('${f.id}', 1, '${escHtml(f.fighter1_name)}', ${f.f1_bet_total || 0}, ${f.f2_bet_total || 0})">
+            🥊 راهن على ${f.fighter1_name}
+          </button>
+          <button class="bet-btn bet-btn-f2" onclick="openBetModal('${f.id}', 2, '${escHtml(f.fighter2_name)}', ${f.f1_bet_total || 0}, ${f.f2_bet_total || 0})">
+            🥊 راهن على ${f.fighter2_name}
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function myBetHTML(bet, fight) {
+  if (!bet) return '';
+  const pickedName = bet.fighter_pick === 1 ? fight.fighter1_name : fight.fighter2_name;
+
+  if (fight.status === 'finished') {
+    if (bet.won) {
+      return `<div class="my-bet-indicator">
+        <div class="my-bet-dot won settled"></div>
+        <span>رهانك على <strong>${pickedName}</strong> — <span style="color:var(--green)">ربحت ${$$(bet.payout)}! 🎉</span></span>
+      </div>`;
+    } else {
+      return `<div class="my-bet-indicator">
+        <div class="my-bet-dot lost settled"></div>
+        <span>رهانك على <strong>${pickedName}</strong> — <span style="color:var(--red)">خسرت ${$$(bet.amount)}</span></span>
+      </div>`;
+    }
+  }
+
+  return `<div class="my-bet-indicator">
+    <div class="my-bet-dot"></div>
+    <span>رهانك على <strong>${pickedName}</strong>: ${$$(bet.amount)}</span>
+  </div>`;
+}
+
+function recentItemHTML(f) {
+  const myBet = f.my_bet;
+  const total = (f.f1_bet_total || 0) + (f.f2_bet_total || 0);
+
+  let myResultHTML = '<span class="recent-my-result none">لم تراهن</span>';
+  if (myBet) {
+    if (myBet.won) {
+      myResultHTML = `<span class="recent-my-result won">+${$$(myBet.payout)}</span>`;
+    } else {
+      myResultHTML = `<span class="recent-my-result lost">-${$$(myBet.amount)}</span>`;
+    }
+  }
+
+  return `
+    <div class="recent-item">
+      <div>
+        <div class="recent-fighters">${f.fighter1_name} ⚔️ ${f.fighter2_name}</div>
+        <div class="recent-winner">🏆 ${f.winner_name}</div>
+        <div class="recent-pot">إجمالي الرهانات: ${$$(total)}</div>
+      </div>
+      ${myResultHTML}
+    </div>
+  `;
+}
+
+// ── Countdown ticker ───────────────────────────────────
+function startCountdownTick() {
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(async () => {
+    // Update countdown labels without full re-render
+    fights.forEach(f => {
+      if (f.status === 'finished') return;
+      const card = document.getElementById(`fight-${f.id}`);
+      if (!card) return;
+      const cdEl = card.querySelector('.fight-countdown');
+      if (!cdEl) return;
+      const tl = timeLeft(f.fight_at);
+      if (!tl) {
+        // Fight time passed — reload
+        reloadAndRefresh();
+        return;
+      }
+      const urgent = (new Date(f.fight_at) - Date.now()) < 5 * 60 * 1000;
+      cdEl.textContent = `⏱ ${tl}`;
+      cdEl.classList.toggle('urgent', urgent);
+    });
+  }, 1000);
+}
+
+async function reloadAndRefresh() {
+  // Attempt to resolve any past-due fights (best-effort)
+  for (const f of fights) {
+    if (f.status === 'open' && new Date(f.fight_at) < new Date()) {
+      await supabase.rpc('resolve_fight', { p_fight_id: f.id });
+    }
+  }
+  await loadFights();
+  renderPage();
+  checkForFinishedFightsToAnimate();
+}
+
+function checkForFinishedFightsToAnimate() {
+  fights.forEach(f => {
+    if (f.status === 'finished' && !shownCombat.has(f.id) && f.my_bet) {
+      shownCombat.add(f.id);
+      showCombatAnimation(f);
+    }
+  });
+}
+
+// ── Bet Modal ──────────────────────────────────────────
+let _betCtx = null;
+
+function openBetModal(fightId, pick, pickerName, f1Total, f2Total) {
+  sfxClick();
+  const f = fights.find(x => x.id === fightId);
+  if (!f) return;
+
+  _betCtx = { fightId, pick, pickerName, f };
+
+  const total    = (f1Total || 0) + (f2Total || 0);
+  const pickSide = pick === 1 ? f1Total || 0 : f2Total || 0;
+  const otherSide = total - pickSide;
+
+  openModal(`
+    <div class="modal-hdr">
+      <span class="modal-title">🥊 تأكيد الرهان</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="bet-modal-pick">
+      تراهن على <strong>${pickerName}</strong>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label class="fl">مبلغ الرهان (الحد الأدنى 100$)</label>
+      <input class="fc" type="number" id="bet-amount-input" min="100" step="100" value="500"
+        oninput="updateBetEstimate(${pickSide}, ${otherSide})">
+    </div>
+
+    <div class="bet-odds-preview" id="bet-odds-preview">
+      ${oddsPreviewHTML(500, pickSide, otherSide)}
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-r btn-full" id="confirm-bet-btn" onclick="submitBet()">⚔️ تأكيد الرهان</button>
+      <button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+    </div>
+  `);
+}
+
+function oddsPreviewHTML(amount, myPickTotal, otherTotal) {
+  const newMyPick = myPickTotal + amount;
+  const pool      = otherTotal * 0.9; // after 10% house
+  const estPayout = newMyPick > 0
+    ? Math.floor(amount + pool * (amount / newMyPick))
+    : amount;
+  return `
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+      <span>رهانك:</span><span style="color:var(--text)">${$$(amount)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <span>ربح متوقع إذا فزت:</span>
+      <span class="est-win">≈ ${$$(estPayout)}</span>
+    </div>
+    <div style="font-size:.7rem;color:var(--text2);margin-top:6px">* يعتمد على الرهانات النهائية</div>
+  `;
+}
+
+function updateBetEstimate(myPickTotal, otherTotal) {
+  const input = document.getElementById('bet-amount-input');
+  const el    = document.getElementById('bet-odds-preview');
+  if (!input || !el) return;
+  const amount = Math.max(100, parseInt(input.value) || 100);
+  el.innerHTML = oddsPreviewHTML(amount, myPickTotal, otherTotal);
+}
+
+async function submitBet() {
+  if (!_betCtx) return;
+  const btn = document.getElementById('confirm-bet-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري المعالجة…'; }
+
+  const input  = document.getElementById('bet-amount-input');
+  const amount = Math.max(100, parseInt(input?.value) || 100);
+
+  if (amount > player.cash) {
+    toast('رصيدك غير كافٍ', 'e');
+    if (btn) { btn.disabled = false; btn.textContent = '⚔️ تأكيد الرهان'; }
+    return;
+  }
+
+  const { data, error } = await supabase.rpc('place_fight_bet', {
+    p_fight_id: _betCtx.fightId,
+    p_fighter:  _betCtx.pick,
+    p_amount:   amount
+  });
+
+  if (error || !data?.success) {
+    toast(data?.message || error?.message || 'حدث خطأ', 'e');
+    sfxFail();
+    if (btn) { btn.disabled = false; btn.textContent = '⚔️ تأكيد الرهان'; }
+    return;
+  }
+
+  sfxMoney();
+  toast('تم قبول رهانك! 🥊', 's', 4000);
+  player.cash -= amount;
+  const cd = document.getElementById('cash-display');
+  if (cd) cd.textContent = $$(player.cash);
+
+  closeModal();
+  await loadFights();
+  renderPage();
+  startCountdownTick();
+}
+
+// ── Combat Animation ───────────────────────────────────
+function showCombatAnimation(fight) {
+  const f1Name    = fight.fighter1_name;
+  const f2Name    = fight.fighter2_name;
+  const winner    = fight.winner_name;
+  const f1Wins    = winner === f1Name;
+  const resultLog = fight.result_log || '';
+  const myBet     = fight.my_bet;
+  const myPick    = myBet ? (myBet.fighter_pick === 1 ? f1Name : f2Name) : null;
+  const iWon      = myBet?.won;
+
+  // Build overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'combat-overlay';
+  overlay.innerHTML = `
+    <div class="combat-box" style="position:relative">
+      <div class="combat-flash" id="combat-flash"></div>
+      <div class="combat-title">⚔️ المعركة جارية…</div>
+      <div class="combat-fighters">
+        <div class="combat-fighter" id="cf1">
+          <span class="combat-fighter-icon" id="cf1-icon">💀</span>
+          <div class="combat-fighter-name">${f1Name}</div>
+          <div class="hp-bar-wrap"><div class="hp-bar" id="hp1" style="width:100%"></div></div>
+          <div class="hp-label" id="hp1-lbl">HP 100%</div>
+        </div>
+        <div class="combat-vs">VS</div>
+        <div class="combat-fighter" id="cf2">
+          <span class="combat-fighter-icon" id="cf2-icon">💀</span>
+          <div class="combat-fighter-name">${f2Name}</div>
+          <div class="hp-bar-wrap"><div class="hp-bar" id="hp2" style="width:100%"></div></div>
+          <div class="hp-label" id="hp2-lbl">HP 100%</div>
+        </div>
+      </div>
+      <div class="combat-log" id="combat-log">المقاتلان يتخذان مواقعهما…</div>
+      <div id="combat-result" style="display:none"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Animate fight sequence
+  let hp1 = 100, hp2 = 100;
+  const rounds = 6 + Math.floor(Math.random() * 4); // 6-9 rounds
+  const msgs = [
+    `${f1Name} يهاجم بقوة!`, `${f2Name} يتفادى ويرد!`,
+    `ضربة قوية على ${f2Name}!`, `${f1Name} يتراجع قليلاً…`,
+    `${f2Name} يشن هجوماً متواصلاً!`, `${f1Name} يتحمل الضربات!`,
+    `المعركة على حافة الحسم!`, `الدماء تسيل على الأرض!`,
+    `${f2Name} ينهار تقريباً!`, `${f1Name} لا يزال واقفاً!`
+  ];
+
+  async function runRounds() {
+    for (let i = 0; i < rounds; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      if (!document.body.contains(overlay)) return;
+
+      const roundProgress = (i + 1) / rounds;
+      // Loser's HP drains faster
+      if (f1Wins) {
+        hp2 = Math.max(0, Math.round(100 - roundProgress * 95));
+        hp1 = Math.max(10, Math.round(100 - roundProgress * 40));
+      } else {
+        hp1 = Math.max(0, Math.round(100 - roundProgress * 95));
+        hp2 = Math.max(10, Math.round(100 - roundProgress * 40));
+      }
+
+      const hp1El  = document.getElementById('hp1');
+      const hp2El  = document.getElementById('hp2');
+      const lbl1   = document.getElementById('hp1-lbl');
+      const lbl2   = document.getElementById('hp2-lbl');
+      const logEl  = document.getElementById('combat-log');
+      const flash  = document.getElementById('combat-flash');
+
+      if (hp1El) {
+        hp1El.style.width = hp1 + '%';
+        hp1El.className = 'hp-bar' + (hp1 < 30 ? ' crit' : hp1 < 60 ? ' low' : '');
+      }
+      if (hp2El) {
+        hp2El.style.width = hp2 + '%';
+        hp2El.className = 'hp-bar' + (hp2 < 30 ? ' crit' : hp2 < 60 ? ' low' : '');
+      }
+      if (lbl1) lbl1.textContent = `HP ${hp1}%`;
+      if (lbl2) lbl2.textContent = `HP ${hp2}%`;
+      if (logEl) logEl.textContent = msgs[i % msgs.length];
+
+      // Punch animations
+      if (i % 2 === 0) {
+        const icon = document.getElementById('cf1-icon');
+        if (icon) { icon.classList.add('punch'); setTimeout(() => icon.classList.remove('punch'), 250); }
+      } else {
+        const icon = document.getElementById('cf2-icon');
+        if (icon) { icon.classList.add('punch'); setTimeout(() => icon.classList.remove('punch'), 250); }
+      }
+
+      // Flash on heavy hit
+      if (roundProgress > 0.6 && flash) {
+        flash.classList.add('active');
+        setTimeout(() => flash.classList.remove('active'), 250);
+      }
+
+      sfxAttack();
+    }
+
+    // Final knockout
+    await new Promise(r => setTimeout(r, 600));
+    if (!document.body.contains(overlay)) return;
+
+    sfxWin();
+
+    const resultEl = document.getElementById('combat-result');
+    const logEl    = document.getElementById('combat-log');
+    if (logEl) logEl.style.display = 'none';
+
+    let myOutcomeHTML = '';
+    if (myBet) {
+      if (iWon) {
+        sfxLevelUp();
+        myOutcomeHTML = `<div class="combat-my-outcome won">🏆 فزت بـ ${$$(myBet.payout)}!</div>`;
+      } else {
+        myOutcomeHTML = `<div class="combat-my-outcome lost">💸 خسرت ${$$(myBet.amount)}</div>`;
+      }
+    }
+
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `
+        <div class="combat-winner-reveal">
+          <span class="combat-winner-name">${winner}</span>
+          <div class="combat-winner-label">المنتصر بلا منازع</div>
+        </div>
+        ${resultLog ? `<div class="combat-result-story">${resultLog}</div>` : ''}
+        ${myOutcomeHTML}
+        <button class="btn btn-full" style="background:rgba(255,51,51,.15);color:#ff5555;border:1px solid rgba(255,51,51,.3)"
+          onclick="this.closest('.combat-overlay').remove()">
+          ✕ إغلاق
+        </button>
+      `;
+    }
+  }
+
+  runRounds();
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// ── Helpers ────────────────────────────────────────────
+function escHtml(s) {
+  return (s || '').replace(/'/g, "\\'").replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+init();
+</script>
+</body>
+</html>
