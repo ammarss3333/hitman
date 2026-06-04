@@ -17,7 +17,7 @@ async function loadPlayer(force = false) {
 
     const { data, error } = await supabase
       .from('players')
-      .select('*, gangs(name, tag)')
+      .select('*, gangs!gang_id(name, tag)')
       .eq('id', user.id)
       .single();
 
